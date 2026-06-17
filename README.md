@@ -122,15 +122,15 @@
 
 | 参数名 | 用途 | 所属工作流 | 备注 |
 |-------|:----:|:----------:|:----:|
-| `GARMIN_EMAIL` | 佳明主账号邮箱 | 全部 | 中国区账号 |
-| `GARMIN_PASSWORD` | 佳明主账号密码 | 全部 | |
-| `GARMIN_AUTH_DOMAIN` | 佳明主账号区域 | 全部 | 国区填 `CN` |
-| `GARMIN_NEWEST_NUM` | 佳明每次拉取上限 | 全部 | 默认 `100`，增量同步够用 |
+| `GARMIN_EMAIL` | 佳明中国区账号邮箱 | 全部 | 国区账号 |
+| `GARMIN_PASSWORD` | 佳明中国区账号密码 | 全部 | |
+| `GARMIN_AUTH_DOMAIN` | 佳明中国区区域 | 全部 | 国区填 `CN` |
+| `GARMIN_NEWEST_NUM` | 佳明中国区每次拉取上限 | 全部 | 默认 `100`，增量同步够用 |
 | `COROS_EMAIL` | 高驰登录邮箱 | garmin-sync-coros / coros-sync-garmin | |
 | `COROS_PASSWORD` | 高驰登录密码 | 同上 | |
-| `GARMIN_INTL_EMAIL` | 佳明国际区邮箱 | garmin-sync-garmin | 跨区同步用 |
-| `GARMIN_INTL_PASSWORD` | 佳明国际区密码 | 同上 | |
-| `GARMIN_INTL_AUTH_DOMAIN` | 佳明国际区域名 | 同上 | 填 `COM` |
+| `GARMIN_INTL_EMAIL` | 佳明国际区账号邮箱 | garmin-sync-garmin | |
+| `GARMIN_INTL_PASSWORD` | 佳明国际区账号密码 | 同上 | |
+| `GARMIN_INTL_AUTH_DOMAIN` | 佳明国际区区域 | 同上 | 填 `COM` |
 
 ## 三大同步工作流说明
 
