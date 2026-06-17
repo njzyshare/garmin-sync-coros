@@ -29,6 +29,10 @@ from config import DB_DIR, GARMIN_FIT_DIR
 from garmin.garmin_client import GarminClient
 from garmin.garmin_db_cross_region import GarminCrossRegionDB
 
+import shutil
+
+
+# 配置默认值：NEWEST_NUM=100（历史数据已传过，只需增量）
 SYNC_CONFIG = {
     # 源账号（CN 中国区）
     'GARMIN_EMAIL': '',
@@ -39,7 +43,7 @@ SYNC_CONFIG = {
     'GARMIN_INTL_PASSWORD': '',
     'GARMIN_INTL_AUTH_DOMAIN': '',
     # 通用
-    'GARMIN_NEWEST_NUM': 10000,
+    'GARMIN_NEWEST_NUM': 100,
 }
 
 CROSS_REGION_DB_NAME = "garmin_cross_region.db"
@@ -217,6 +221,11 @@ def main():
 
     # ---- Phase 2: 上传到 INTL ----
     phase2_upload_to_intl(downloaded_files, cross_region_db)
+
+    # 清理下载的临时文件
+    if os.path.exists(GARMIN_FIT_DIR):
+        shutil.rmtree(GARMIN_FIT_DIR)
+        print(f"临时目录已清理: {GARMIN_FIT_DIR}")
 
     print("\n✅ 跨区同步完成！")
 

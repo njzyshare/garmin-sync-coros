@@ -13,11 +13,12 @@ from oss.ali_oss_client import AliOssClient
 from oss.aws_oss_client import AwsOssClient
 from utils.md5_utils import calculate_md5_file
 
+# 配置默认值：NEWEST_NUM=100（历史数据已传过，只需增量）
 SYNC_CONFIG = {
     'GARMIN_AUTH_DOMAIN': '',
     'GARMIN_EMAIL': '',
     'GARMIN_PASSWORD': '',
-    'GARMIN_NEWEST_NUM': 10000,
+    'GARMIN_NEWEST_NUM': 100,
     "COROS_EMAIL": '',
     "COROS_PASSWORD": '',
 }
@@ -70,8 +71,9 @@ if __name__ == "__main__":
   un_sync_id_list = garmin_db.getUnSyncActivity()
   if un_sync_id_list == None or len(un_sync_id_list) == 0:
       exit()
+  ## 下载未同步活动的FIT文件
+  # 修复：下载失败标记异常状态，避免下次重复尝试
   file_path_list = []
-  
   for un_sync_id in un_sync_id_list:
     try:
       file = garminClient.downloadFitActivity(un_sync_id)
@@ -87,7 +89,17 @@ if __name__ == "__main__":
       file_path_list.append(un_sync_info)
       
     except Exception as err:
-      print(err)
+      print(f"下载活动 {un_sync_id} 失败: {err}")
+      garmin_db.updateExceptionSyncStatus(un_sync_id)
+  
+  if len(file_path_list) == 0:
+      print("没有成功下载的活动，退出。")
+      exit()
+
+  ## 逐个上传到高驰
+  # 修复：上传失败不exit()，继续处理下一个活动
+  success_count = 0
+  fail_count = 0
   for un_sync_info in file_path_list:
     try:
       client = None
@@ -104,7 +116,16 @@ if __name__ == "__main__":
       upload_result = corosClient.uploadActivity(f"fit_zip/{corosClient.userId}/{calculate_md5_file(file_path)}.zip", calculate_md5_file(file_path), f"{un_sync_id}.zip", size)
       if upload_result:
           garmin_db.updateSyncStatus(un_sync_id)
+          success_count += 1
     except Exception as err:
-      print(err)
+      print(f"上传活动 {un_sync_id} 失败: {err}")
       garmin_db.updateExceptionSyncStatus(un_sync_id)
-      exit()
+      fail_count += 1
+
+  print(f"\n同步完成。成功: {success_count}, 失败: {fail_count}")
+
+  ## 下载的临时文件清理
+  if os.path.exists(GARMIN_FIT_DIR):
+      import shutil
+      shutil.rmtree(GARMIN_FIT_DIR)
+      print(f"临时目录已清理: {GARMIN_FIT_DIR}")

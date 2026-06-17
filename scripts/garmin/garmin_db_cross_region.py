@@ -23,7 +23,7 @@ class GarminCrossRegionDB:
 
     def getUnSyncActivity(self):
         """获取未同步到国际区的活动ID列表"""
-        select_sql = 'SELECT activity_id FROM garmin_cross_region_activity WHERE is_sync_intl = 0 limit 1000'
+        select_sql = 'SELECT activity_id FROM garmin_cross_region_activity WHERE is_sync_intl = 0 limit 100'
         with SqliteDB(self._db_name) as db:
             result = db.execute(select_sql).fetchall()
             if len(result) == 0:
