@@ -107,7 +107,7 @@ class CorosClient:
         except Exception as err:
             exit() 
      ## 获取所有运动
-    def getAllActivities(self): 
+    def getAllActivities(self, max_count=200):
       all_activities = []
       size = 200
       page = 1
@@ -115,7 +115,11 @@ class CorosClient:
         activities = self.getActivities(size, page)
         totalPage = activities['data']['totalPage']
         if totalPage >= page:
-          all_activities.extend(activities['data']['dataList'])
+          batch = activities['data']['dataList']
+          all_activities.extend(batch)
+          # 如果设定了 max_count 且已拉够，提前结束
+          if max_count > 0 and len(all_activities) >= max_count:
+              return all_activities[:max_count]
         else:
           return all_activities
         page += 1

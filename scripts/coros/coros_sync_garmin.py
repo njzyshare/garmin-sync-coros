@@ -9,6 +9,7 @@ from coros_client import CorosClient
 from config  import DB_DIR, COROS_FIT_DIR
 from coros_db import CorosDB
 from garmin.garmin_client import GarminClient
+from garmin.garmin_db import GarminDB
 
 
 SYNC_CONFIG = {
@@ -28,6 +29,31 @@ def init(coros_db):
         coros_db.initDB()
     if not os.path.exists(COROS_FIT_DIR):
         os.mkdir(COROS_FIT_DIR)
+
+
+def get_garmin_activity_ids():
+    """
+    读取已有的 garmin.db，获取所有已记录的佳明活动 ID 集合。
+    用于判断高驰上的活动是否来源于佳明同步。
+    如果 garmin.db 不存在或读取失败，返回空集合。
+    """
+    garmin_ids = set()
+    garmin_db_path = os.path.join(DB_DIR, "garmin.db")
+    if not os.path.exists(garmin_db_path):
+        print("garmin.db 不存在，无法进行交叉去重校验。")
+        return garmin_ids
+
+    try:
+        from sqlite_db import SqliteDB
+        with SqliteDB("garmin.db") as db:
+            rows = db.execute('SELECT activity_id FROM garmin_activity').fetchall()
+            for row in rows:
+                garmin_ids.add(str(row[0]))
+        print(f"从 garmin.db 读取到 {len(garmin_ids)} 个历史活动 ID")
+    except Exception as err:
+        print(f"读取 garmin.db 失败: {err}")
+
+    return garmin_ids
 
 
 if __name__ == "__main__":
@@ -57,24 +83,44 @@ if __name__ == "__main__":
   ## 初始化DB位置和下载文件位置
   init(coros_db)
 
-  all_activities = corosClient.getAllActivities()
+  ## 读取 garmin.db 中的佳明活动 ID 集合，用于交叉校验
+  garmin_activity_ids = get_garmin_activity_ids()
+
+  ## 只取最近 100 条活动（通过 max_count 参数限制 API 分页）
+  all_activities = corosClient.getAllActivities(max_count=100)
   if all_activities == None or len(all_activities) == 0:
       exit()
+  print(f"获取到高驰最近 {len(all_activities)} 条活动")
+
   for activity in all_activities:
       activity_id = activity["labelId"]
       sport_type = activity["sportType"]
+      # 保存到 coros.db（去重）
       coros_db.saveActivity(activity_id, sport_type)
-
-
 
   un_sync_list = coros_db.getUnSyncActivity()
   if un_sync_list == None or len(un_sync_list) == 0:
       exit()
 
-  ## 逐个下载并上传，修复：下载失败标记异常，不exit
+  ## 跳过从佳明同步过来的活动：如果 activity_id 在 garmin.db 的已知记录中，说明
+  ## 这个活动是之前从佳明同步到高驰的，不应该再传回佳明，避免数据往返。
+  filtered_list = []
+  skipped_count = 0
+  for un_sync in un_sync_list:
+      activity_id_str = str(un_sync["id"])
+      if activity_id_str in garmin_activity_ids:
+          print(f"  跳过活动 {activity_id_str}（来源：佳明同步至高驰），避免数据往返")
+          coros_db.updateSyncStatus(un_sync["id"])  # 标记为已同步（跳过）
+          skipped_count += 1
+      else:
+          filtered_list.append(un_sync)
+
+  print(f"未同步活动中，{skipped_count} 条来自佳明同步已跳过，{len(filtered_list)} 条待处理")
+
+  ## 逐个下载并上传
   success_count = 0
   fail_count = 0
-  for un_sync in un_sync_list:
+  for un_sync in filtered_list:
     try:
       id = un_sync["id"]
       sport_type = un_sync["sportType"]
@@ -97,7 +143,7 @@ if __name__ == "__main__":
       coros_db.updateExceptionSyncStatus(id)
       fail_count += 1
 
-  print(f"\n同步完成。成功: {success_count}, 失败: {fail_count}")
+  print(f"\n同步完成。成功: {success_count}, 失败: {fail_count}, 跳过(佳明来源): {skipped_count}")
 
   ## 清理临时文件
   if os.path.exists(COROS_FIT_DIR):
