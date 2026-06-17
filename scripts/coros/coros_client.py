@@ -82,12 +82,15 @@ class CorosClient:
           )
           upload_response = json.loads(response.data)
           print(upload_response)
-          if upload_response["data"].get("status") == 2 and  upload_response["result"] == "0000":
-             return True
+          if upload_response.get("result") == "0000" and upload_response.get("data", {}).get("status") == 2:
+             # 返回完整的 data 字典，供调用方提取高驰 activity ID (labelId)
+             return upload_response["data"]
           else:
-             return False
+             print(f"高驰上传失败: {upload_response}")
+             return None
         except Exception as err:
-            exit() 
+            print(f"高驰上传异常: {err}")
+            return None 
 
     def getActivities(self, size:int, page:int):
         self.checkToken()

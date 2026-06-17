@@ -70,6 +70,26 @@ class GarminDB:
                 VALUES (?, ?, 1)
             ''', (activity_id, SOURCE_COROS))
 
+    def saveGarminCorosMapping(self, garmin_activity_id: int, coros_label_id: int):
+        """记录佳明活动 ID 与高驰 labelId 的映射关系。
+           用于 coros_sync_garmin.py 判断高驰活动是否源自佳明。
+        """
+        with SqliteDB(self._garmin_db_name) as db:
+            db.execute('''
+                INSERT OR REPLACE INTO garmin_coros_mapping
+                (garmin_activity_id, coros_label_id)
+                VALUES (?, ?)
+            ''', (garmin_activity_id, coros_label_id))
+
+    def getCorosLabelIds(self):
+        """返回所有已记录的高驰 labelId 集合，供 coros_sync_garmin.py 做去重判断。"""
+        result = set()
+        with SqliteDB(self._garmin_db_name) as db:
+            rows = db.execute('SELECT coros_label_id FROM garmin_coros_mapping').fetchall()
+            for row in rows:
+                result.add(str(row[0]))
+        return result
+
     def initDB(self):
       with SqliteDB(os.path.join(DB_DIR, self._garmin_db_name)) as db:
           db.execute('''
@@ -81,7 +101,15 @@ class GarminDB:
               is_sync_coros INTEGER NOT NULL  DEFAULT 0,
               create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
               update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-          )
+          );
+          
+          CREATE TABLE IF NOT EXISTS garmin_coros_mapping(
+              id INTEGER NOT NULL PRIMARY KEY  AUTOINCREMENT,
+              garmin_activity_id INTEGER NOT NULL,
+              coros_label_id INTEGER NOT NULL,
+              create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+              UNIQUE(garmin_activity_id, coros_label_id)
+          );
           
           '''
           )

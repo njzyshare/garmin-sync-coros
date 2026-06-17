@@ -31,31 +31,6 @@ def init(coros_db):
         os.mkdir(COROS_FIT_DIR)
 
 
-def get_garmin_activity_ids():
-    """
-    读取已有的 garmin.db，获取所有已记录的佳明活动 ID 集合。
-    用于判断高驰上的活动是否来源于佳明同步。
-    如果 garmin.db 不存在或读取失败，返回空集合。
-    """
-    garmin_ids = set()
-    garmin_db_path = os.path.join(DB_DIR, "garmin.db")
-    if not os.path.exists(garmin_db_path):
-        print("garmin.db 不存在，无法进行交叉去重校验。")
-        return garmin_ids
-
-    try:
-        from sqlite_db import SqliteDB
-        with SqliteDB("garmin.db") as db:
-            rows = db.execute('SELECT activity_id FROM garmin_activity').fetchall()
-            for row in rows:
-                garmin_ids.add(str(row[0]))
-        print(f"从 garmin.db 读取到 {len(garmin_ids)} 个历史活动 ID")
-    except Exception as err:
-        print(f"读取 garmin.db 失败: {err}")
-
-    return garmin_ids
-
-
 if __name__ == "__main__":
   # 首先读取 面板变量 或者 github action 运行变量
   for k in SYNC_CONFIG:
@@ -90,8 +65,9 @@ if __name__ == "__main__":
       garmin_db.initDB()
       print(f"已初始化 garmin.db: {garmin_db_full_path}")
 
-  ## 读取 garmin.db 中的佳明活动 ID 集合，用于交叉校验
-  garmin_activity_ids = get_garmin_activity_ids()
+  ## 读取 garmin_coros_mapping 中已记录的高驰 labelId 集合
+  ## 用于判断高驰上的活动是否源自佳明同步
+  garmin_activity_ids = garmin_db.getCorosLabelIds()
 
   ## 只取最近 100 条活动（通过 max_count 参数限制 API 分页）
   all_activities = corosClient.getAllActivities(max_count=100)

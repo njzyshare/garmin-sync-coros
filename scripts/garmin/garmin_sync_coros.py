@@ -142,6 +142,26 @@ if __name__ == "__main__":
       if upload_result:
           garmin_db.updateSyncStatus(un_sync_id)
           success_count += 1
+          # 尝试从响应中提取高驰 labelId，建立映射关系
+          label_id = None
+          if isinstance(upload_result, dict):
+              for key in ("labelId", "activityId", "id", "activity_id"):
+                  if key in upload_result:
+                      try:
+                          label_id = int(upload_result[key])
+                          break
+                      except (ValueError, TypeError):
+                          pass
+          if label_id:
+              try:
+                  garmin_db.saveGarminCorosMapping(int(un_sync_id), label_id)
+                  print(f"  已记录映射：佳明 {un_sync_id} ↔ 高驰 {label_id}")
+              except Exception as e:
+                  print(f"  保存映射失败（可忽略）: {e}")
+      else:
+          print(f"  活动 {un_sync_id}.zip 上传失败: {upload_result}")
+          garmin_db.updateExceptionSyncStatus(un_sync_id)
+          fail_count += 1
     except Exception as err:
       print(f"上传活动 {un_sync_id} 失败: {err}")
       garmin_db.updateExceptionSyncStatus(un_sync_id)
