@@ -40,6 +40,7 @@ if __name__ == "__main__":
   COROS_EMAIL = SYNC_CONFIG["COROS_EMAIL"]
   COROS_PASSWORD = SYNC_CONFIG["COROS_PASSWORD"]
   corosClient = CorosClient(COROS_EMAIL, COROS_PASSWORD)
+  corosClient.login()
 
   GARMIN_EMAIL = SYNC_CONFIG["GARMIN_EMAIL"]
   GARMIN_PASSWORD = SYNC_CONFIG["GARMIN_PASSWORD"]
@@ -69,6 +70,10 @@ if __name__ == "__main__":
   un_sync_list = coros_db.getUnSyncActivity()
   if un_sync_list == None or len(un_sync_list) == 0:
       exit()
+
+  ## 逐个下载并上传，修复：下载失败标记异常，不exit
+  success_count = 0
+  fail_count = 0
   for un_sync in un_sync_list:
     try:
       id = un_sync["id"]
@@ -81,8 +86,21 @@ if __name__ == "__main__":
       print(f"{id}.fit upload status {upload_status}")
       if upload_status in ("SUCCESS", "DUPLICATE_ACTIVITY"):
         coros_db.updateSyncStatus(id)
+        success_count += 1
+      else:
+        print(f"  {id}.fit 上传失败: {upload_status}")
+        coros_db.updateExceptionSyncStatus(id)
+        fail_count += 1
       
     except Exception as err:
-      print(err)
+      print(f"活动 {id} 同步异常: {err}")
       coros_db.updateExceptionSyncStatus(id)
-  # exit()
+      fail_count += 1
+
+  print(f"\n同步完成。成功: {success_count}, 失败: {fail_count}")
+
+  ## 清理临时文件
+  if os.path.exists(COROS_FIT_DIR):
+      import shutil
+      shutil.rmtree(COROS_FIT_DIR)
+      print(f"临时目录已清理: {COROS_FIT_DIR}")
