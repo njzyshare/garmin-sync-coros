@@ -158,6 +158,8 @@ if __name__ == "__main__":
                   print(f"  已记录映射：佳明 {un_sync_id} ↔ 高驰 {label_id}")
               except Exception as e:
                   print(f"  保存映射失败（可忽略）: {e}")
+          else:
+              print(f"  ⚠️ 警告：无法从高驰响应中提取 labelId，双向防重机制可能失效")
       else:
           print(f"  活动 {un_sync_id}.zip 上传失败: {upload_result}")
           garmin_db.updateExceptionSyncStatus(un_sync_id)

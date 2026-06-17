@@ -13,7 +13,7 @@
 | :----------------: | :--------------------------------: | :----------------: |
 |    GARMIN_EMAIL    |          佳明登录帐号邮箱          |                    |
 |  GARMIN_PASSWORD   |            佳明登录密码            |                    |
-| GARMIN_AUTH_DOMAIN | 佳明区域（国际区填:COM 国区填:CN） |    (COM or CN)     |
+| GARMIN_AUTH_DOMAIN | 佳明主账号区域（国区填 CN） |    (CN or COM)     |
 | GARMIN_NEWEST_NUM  |            最新记录条数            | (默认0，可写大于0) |
 |    COROS_EMAIL     |           高驰 登录邮箱            |                    |
 |   COROS_PASSWORD   |             高驰 密码              |                    |
@@ -71,6 +71,10 @@
 
 ✅ 开启三个工作流也不会出现数据死循环
 ✅ 每个运动记录只在源头平台产生一次，不会在平台间反复传递
+
+### ⚠️ 注意事项
+
+双向防重机制依赖高驰上传接口响应中的 `labelId` 字段建立映射关系。如果高驰接口响应格式变更导致无法提取 `labelId`，`coros-sync-garmin` 可能无法识别已同步活动，导致重复上传尝试（佳明会返回 `DUPLICATE_ACTIVITY` 拒绝，不会重复导入）。如遇此情况，请提交 Issue。
 
 ## Github配置步骤
 ### 1.参数配置
