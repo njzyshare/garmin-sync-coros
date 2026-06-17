@@ -24,12 +24,11 @@ SYNC_CONFIG = {
 }
 
 
-def init(coros_db):
-    ## 判断RQ数据库是否存在
-    print(os.path.join(DB_DIR, coros_db.garmin_db_name))
-    if not os.path.exists(os.path.join(DB_DIR, coros_db.garmin_db_name)):
-        ## 初始化建表
-        coros_db.initDB()
+def init(garmin_db):
+    """初始化 DB 和下载目录"""
+    print(os.path.join(DB_DIR, garmin_db.garmin_db_name))
+    if not os.path.exists(os.path.join(DB_DIR, garmin_db.garmin_db_name)):
+        garmin_db.initDB()
     if not os.path.exists(GARMIN_FIT_DIR):
         os.mkdir(GARMIN_FIT_DIR)
 
