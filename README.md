@@ -95,7 +95,7 @@
 | `GARMIN_EMAIL` | 佳明中国区账号邮箱 | 全部 | 国区账号 |
 | `GARMIN_PASSWORD` | 佳明中国区账号密码 | 全部 | |
 | `GARMIN_AUTH_DOMAIN` | 佳明中国区区域 | 全部 | 国区填 `CN` |
-| `GARMIN_NEWEST_NUM` | 佳明中国区每次拉取上限 | 全部 | 默认 `100`，增量同步够用 |
+| `GARMIN_NEWEST_NUM` | 每次拉取活动上限（佳明+高驰） | 全部 | 默认 `100`，增量同步够用；设为 `0` 全量拉取；首次运行可设为 `0`，后续改回 `100` |
 | `COROS_EMAIL` | 高驰登录邮箱 | garmin-sync-coros / coros-sync-garmin | |
 | `COROS_PASSWORD` | 高驰登录密码 | 同上 | |
 | `GARMIN_INTL_EMAIL` | 佳明国际区账号邮箱 | garmin-sync-garmin | |

@@ -43,7 +43,9 @@ if __name__ == "__main__":
   GARMIN_EMAIL = SYNC_CONFIG["GARMIN_EMAIL"]
   GARMIN_PASSWORD = SYNC_CONFIG["GARMIN_PASSWORD"]
   GARMIN_AUTH_DOMAIN = SYNC_CONFIG["GARMIN_AUTH_DOMAIN"]
-  GARMIN_NEWEST_NUM = SYNC_CONFIG["GARMIN_NEWEST_NUM"]
+  ## 读取 COROS_NEWEST_NUM 控制高驰侧拉取数量
+  ## >0 时拉够即停，=0 时全量拉取
+  COROS_NEWEST_NUM = int(SYNC_CONFIG.get('GARMIN_NEWEST_NUM', 100))
 
   garminClient = GarminClient(GARMIN_EMAIL, GARMIN_PASSWORD, GARMIN_AUTH_DOMAIN, GARMIN_NEWEST_NUM)
 
@@ -65,7 +67,9 @@ if __name__ == "__main__":
   garmin_activity_ids = garmin_db.getCorosLabelIds()
 
   ## 只取最近 100 条活动（通过 max_count 参数限制 API 分页）
-  all_activities = corosClient.getAllActivities(max_count=100)
+  ## 受 COROS_NEWEST_NUM 控制：>0 时拉够即停，=0 时全量拉取
+  max_count = COROS_NEWEST_NUM if COROS_NEWEST_NUM > 0 else 0
+  all_activities = corosClient.getAllActivities(max_count=max_count)
   if all_activities == None or len(all_activities) == 0:
       exit()
   print(f"获取到高驰最近 {len(all_activities)} 条活动")
