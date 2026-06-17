@@ -12,7 +12,7 @@
 | 4 | **新增双向防数据往返机制** | 详见下方「双向防数据往返机制」章节，防止数据在佳明和高驰之间死循环 |
 | 5 | **新增 `garmin_coros_mapping` 映射表** | 记录佳明 activity_id ↔ 高驰 labelId 的关联关系，实现精确去重 |
 | 6 | **数据库中增加 `source` 字段** | garmin_activity 和 coros_activity 表均增加 source 字段，标记活动来源 |
-| 7 | **修复全量拉取问题** | `getAllActivities()` 修复为遵守 `NEWEST_NUM` 限制，避免每次都全量拉取 |
+| 7 | **工作流全局同步数量灵活切换** | 高驰和佳明国内外三项工作流都遵守 `NEWEST_NUM` 限制，0为全量，＞0时每次够数停止 |
 | 8 | **异常处理优化** | 下载失败标记异常状态、上传失败不 exit 继续处理下一个、同步后清理临时文件 |
 | 9 | **依赖精简与升级** | `requirements.txt` 从固定版本改为范围版本，升级 pydantic/pydantic_core 以兼容 Python 3.13 |
 | 10 | **修复多项 bug** | 缓存步骤 id 缺失、initDB 多语句不支持 Python 3.13、`upload_activity` 返回值比较错误、参数名误导等 |
@@ -95,7 +95,7 @@
 | `GARMIN_EMAIL` | 佳明中国区账号邮箱 | 全部 | 国区账号 |
 | `GARMIN_PASSWORD` | 佳明中国区账号密码 | 全部 | |
 | `GARMIN_AUTH_DOMAIN` | 佳明中国区区域 | 全部 | 国区填 `CN` |
-| `GARMIN_NEWEST_NUM` | 每次拉取活动上限（佳明+高驰） | 全部 | 默认 `100`，增量同步够用；设为 `0` 全量拉取；首次运行可设为 `0`，后续改回 `100` |
+| `GARMIN_NEWEST_NUM` | 每次拉取活动上限（佳明+高驰） | 全部 | 默认 `50`，同步上限，设为 `0` 全量拉取；建议首次运行可设为 `0`，后续改回 `50` 或者更小的值 |
 | `COROS_EMAIL` | 高驰登录邮箱 | garmin-sync-coros / coros-sync-garmin | |
 | `COROS_PASSWORD` | 高驰登录密码 | 同上 | |
 | `GARMIN_INTL_EMAIL` | 佳明国际区账号邮箱 | garmin-sync-garmin | |

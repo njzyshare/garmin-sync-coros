@@ -13,12 +13,12 @@ from oss.ali_oss_client import AliOssClient
 from oss.aws_oss_client import AwsOssClient
 from utils.md5_utils import calculate_md5_file
 
-# 配置默认值：NEWEST_NUM=100（历史数据已传过，只需增量）
+# 配置默认值：NEWEST_NUM=50（增量同步，每次最多处理 50 条）
 SYNC_CONFIG = {
     'GARMIN_AUTH_DOMAIN': '',
     'GARMIN_EMAIL': '',
     'GARMIN_PASSWORD': '',
-    'GARMIN_NEWEST_NUM': 100,
+    'GARMIN_NEWEST_NUM': 50,
     "COROS_EMAIL": '',
     "COROS_PASSWORD": '',
 }

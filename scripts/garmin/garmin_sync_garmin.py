@@ -13,7 +13,7 @@ Garmin 跨区同步脚本 (CN -> International)
     GARMIN_INTL_PASSWORD
     GARMIN_INTL_AUTH_DOMAIN (可留空或设为 "COM")
   通用:
-    GARMIN_NEWEST_NUM (每次拉取的活动上限，默认 10000)
+    GARMIN_NEWEST_NUM (每次拉取的活动上限，0为全量)
 """
 
 import os
@@ -32,7 +32,7 @@ from garmin.garmin_db_cross_region import GarminCrossRegionDB
 import shutil
 
 
-# 配置默认值：NEWEST_NUM=100（历史数据已传过，只需增量）
+# 配置默认值：NEWEST_NUM=50（增量同步，每次最多处理 50 条）
 SYNC_CONFIG = {
     # 源账号（CN 中国区）
     'GARMIN_EMAIL': '',
@@ -43,7 +43,7 @@ SYNC_CONFIG = {
     'GARMIN_INTL_PASSWORD': '',
     'GARMIN_INTL_AUTH_DOMAIN': '',
     # 通用
-    'GARMIN_NEWEST_NUM': 100,
+    'GARMIN_NEWEST_NUM': 50,
 }
 
 CROSS_REGION_DB_NAME = "garmin_cross_region.db"
@@ -134,7 +134,7 @@ def phase2_upload_to_intl(downloaded_files, cross_region_db):
     intl_email = SYNC_CONFIG['GARMIN_INTL_EMAIL']
     intl_password = SYNC_CONFIG['GARMIN_INTL_PASSWORD']
     intl_auth_domain = SYNC_CONFIG.get('GARMIN_INTL_AUTH_DOMAIN', '')
-    newest_num = int(SYNC_CONFIG.get('GARMIN_NEWEST_NUM', 100))
+    newest_num = int(SYNC_CONFIG.get('GARMIN_NEWEST_NUM', 50))
 
     # 清除 garth 的 CN 登录态，切换到 INTL
     print("切换登录到 Garmin 国际区...")
@@ -210,7 +210,7 @@ def main():
     cn_email = SYNC_CONFIG['GARMIN_EMAIL']
     cn_password = SYNC_CONFIG['GARMIN_PASSWORD']
     cn_auth_domain = SYNC_CONFIG.get('GARMIN_AUTH_DOMAIN', '')
-    newest_num = int(SYNC_CONFIG.get('GARMIN_NEWEST_NUM', 10000))
+    newest_num = int(SYNC_CONFIG.get('GARMIN_NEWEST_NUM', 50))
 
     source_client = GarminClient(cn_email, cn_password, cn_auth_domain, newest_num)
     downloaded_files = phase1_download_from_cn(source_client, cross_region_db)

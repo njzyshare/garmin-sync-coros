@@ -16,7 +16,7 @@ SYNC_CONFIG = {
     'GARMIN_AUTH_DOMAIN': '',
     'GARMIN_EMAIL': '',
     'GARMIN_PASSWORD': '',
-    'GARMIN_NEWEST_NUM': 0,
+    'GARMIN_NEWEST_NUM': 50,
     "COROS_EMAIL": '',
     "COROS_PASSWORD": '',
 }
@@ -43,9 +43,10 @@ if __name__ == "__main__":
   GARMIN_EMAIL = SYNC_CONFIG["GARMIN_EMAIL"]
   GARMIN_PASSWORD = SYNC_CONFIG["GARMIN_PASSWORD"]
   GARMIN_AUTH_DOMAIN = SYNC_CONFIG["GARMIN_AUTH_DOMAIN"]
-  ## 读取 COROS_NEWEST_NUM 控制高驰侧拉取数量
-  ## >0 时拉够即停，=0 时全量拉取
-  COROS_NEWEST_NUM = int(SYNC_CONFIG.get('GARMIN_NEWEST_NUM', 100))
+  ## 读取 GARMIN_NEWEST_NUM 控制拉取数量
+  ## 0 为全量，＞0 时每次够数停止
+  GARMIN_NEWEST_NUM = int(SYNC_CONFIG.get('GARMIN_NEWEST_NUM', 50))
+  COROS_NEWEST_NUM = GARMIN_NEWEST_NUM
 
   garminClient = GarminClient(GARMIN_EMAIL, GARMIN_PASSWORD, GARMIN_AUTH_DOMAIN, GARMIN_NEWEST_NUM)
 
@@ -66,8 +67,7 @@ if __name__ == "__main__":
   ## 用于判断高驰上的活动是否源自佳明同步
   garmin_activity_ids = garmin_db.getCorosLabelIds()
 
-  ## 只取最近 100 条活动（通过 max_count 参数限制 API 分页）
-  ## 受 COROS_NEWEST_NUM 控制：>0 时拉够即停，=0 时全量拉取
+  ## 通过 GARMIN_NEWEST_NUM 控制拉取上限：0 为全量，＞0 时每次够数停止
   max_count = COROS_NEWEST_NUM if COROS_NEWEST_NUM > 0 else 0
   all_activities = corosClient.getAllActivities(max_count=max_count)
   if all_activities == None or len(all_activities) == 0:
