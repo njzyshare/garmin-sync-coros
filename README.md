@@ -19,89 +19,59 @@
 
 ## 双向防数据往返机制
 
-当同时开启多个工作流时，系统内置了**双向防往返机制**，避免数据在两个平台间死循环。核心原理如下：
+当同时开启多个工作流时，系统内置了**双向防往返机制**，避免数据在两个平台间死循环。两条方向各自使用独立的防护手段：
 
-### 核心问题
+---
+
+### 高驰原生活动 → 佳明CN（coros-sync-garmin 方向）
+
+**问题**：高驰原生活动同步到佳明后，如果不加防护，它会被 `garmin-sync-coros` 再次传回高驰。
+
+**防护**：使用 `garmin_coros_mapping` 映射表记录"佳明 activity_id ↔ 高驰 labelId"的对应关系。
 
 ```
-场景 A：高驰原生活动 → coros-sync-garmin → 佳明CN → garmin-sync-coros → 又回到高驰 → ❌ 死循环！
-场景 B：佳明原生活动 → garmin-sync-coros → 高驰 → coros-sync-garmin → 又回到佳明 → ❌ 死循环！
+高驰原生活动
+  │ corosClient.getAllActivities() → 获取高驰活动列表
+  │ 对比 garmin_coros_mapping 表
+  ├─ 映射表有记录 → ✅ 跳过（之前从佳明同步过来的）
+  └─ 映射表无记录 → 下载 FIT → 上传到佳明CN
+                    上传成功后：
+                    → saveCorosSourceActivity(upload_id)
+                    → 在 garmin_coros_mapping 写入映射
+                    → 下次不会再被传回佳明
 ```
 
-### 解决方案（两层防护）
+### 佳明CN原生活动 → 高驰（garmin-sync-coros 方向）
 
-本项目使用**两层独立防护**来解决上述两个方向的循环：
+**问题**：佳明CN原生活动同步到高驰后，如果不加防护，它会在 `coros-sync-garmin` 再次传回佳明。
 
-#### 第一层：source 字段防护（防止场景 A）
+**防护**：使用 `garmin_activity.source` 字段标记每条活动的来源。
 
-在 `garmin.db` 的 `garmin_activity` 表中，每条活动记录一个 `source` 字段：
-
-| source 值 | 含义 |
-|:---------:|------|
-| 0 (SOURCE\_GARMIN) | 佳明原生：手表直接记录的活动 |
-| 1 (SOURCE\_COROS) | 由 `coros-sync-garmin` 从高驰同步到佳明的活动 |
-
-**流程**：
 ```
-高驰原生活动 ──coros-sync-garmin──→ 佳明CN
-                                          │ 上传成功后，saveCorosSourceActivity()
-                                          │ 将佳明返回的 activity_id 写入 garmin.db
-                                          │ 标记 source=1 (SOURCE_COROS)
-                                          ▼
-                                    garmin_activity 表
-                                    activity_id=12345, source=1
-                                          │
-佳明CN同步到高驰 ──garmin-sync-coros──→
-  │ getUnSyncActivity() 获取未同步活动
-  │ 遍历并检查 getSource()
-  │ 发现 source=1 → ✅ 跳过！不传回高驰
-  ▼
-✅ 防循环成功
+佳明CM原生活动
+  │ getActivities() → 获取佳明活动列表
+  │ 写入 garmin_activity 表，记录 source
+  │ getUnSyncActivity() → 获取未同步活动
+  │ 遍历检查 getSource()
+  ├─ source=1 → ✅ 跳过（标记为已同步）
+  │            （之前从高驰同步过来的）
+  └─ source=0 → 下载 FIT → 上传到高驰
 ```
 
-#### 第二层：映射表防护（防止场景 B）
+| source 值 | 含义 | 说明 |
+|:---------:|------|------|
+| 0 | 佳明原生 | 手表直接记录的活动，正常同步到高驰 |
+| 1 | 来自高驰 | 由 `coros-sync-garmin` 从高驰同步到佳明的活动，跳过 |
 
-在 `garmin.db` 中增加 `garmin_coros_mapping` 映射表，记录佳明 activity_id 与高驰 labelId 的对应关系：
+> 为什么需要两种不同的防护？因为佳明和高驰使用不同的 ID 体系（佳明用 `activityId`，高驰用 `labelId`），无法直接比对。所以佳明侧用 `source` 字段标记来源，高驰侧用映射表建立跨平台 ID 关联。
 
-| garmin\_activity\_id | coros\_label\_id |
-|:--------------------:|:----------------:|
-| 12345 | 67890 |
+### 总览
 
-**流程**：
-```
-佳明原生活动 ──garmin-sync-coros──→ 高驰
-                                          │ 上传成功后，从高驰响应提取 labelId
-                                          │ saveGarminCorosMapping(12345, 67890)
-                                          ▼
-                                    garmin_coros_mapping 表
-                                    garmin_activity_id=12345, coros_label_id=67890
-                                          │
-高驰同步到佳明CN ──coros-sync-garmin──→
-  │ getCorosLabelIds() 获取所有已记录的高驰 labelId
-  │ 遍历高驰活动，检查 labelId 是否在映射表中
-  │ 发现 67890 已存在 → ✅ 跳过！不传回佳明
-  ▼
-✅ 防循环成功
-```
-
-### 为什么需要两层？
-
-因为两个平台使用不同的 ID 体系：
-- 佳明活动用 `activityId`（如 `12345`）
-- 高驰活动用 `labelId`（如 `67890`）
-- 两者之间没有对应关系，无法直接比对
-
-所以：
-- **场景 A**（高驰→佳明→高驰）：用佳明侧的 `source` 字段判断——佳明活动 ID 为 `12345`，查 `garmin_activity.source` 是否等于 `SOURCE_COROS(1)`，避免传回高驰
-- **场景 B**（佳明→高驰→佳明）：用 `garmin_coros_mapping` 映射表判断——高驰活动 ID 为 `67890`，查映射表中是否有此高驰 ID，避免传回佳明
-
-### 三层防护总览
-
-| 工作流 | 方向 | 防护手段 | 原理 |
-|--------|------|---------|------|
-| `garmin-sync-coros` | 佳明 CN → 高驰 | `source` 字段 | 跳过 `source=1`（高驰来源）的活动 |
-| `coros-sync-garmin` | 高驰 → 佳明 CN | `garmin_coros_mapping` 映射表 | 跳过映射表中已有的高驰活动 |
-| `garmin-sync-garmin` | 佳明 CN → 佳明 INTL | 不涉及 | 只操作两个佳明账号，无跨平台循环风险 |
+| 工作流 | 方向 | 防护 | 原理 |
+|--------|------|------|------|
+| `coros-sync-garmin` | 高驰 → 佳明 CN | 映射表 | 跳过映射表中已有的高驰活动 |
+| `garmin-sync-coros` | 佳明 CN → 高驰 | source 字段 | 跳过 source=1（高驰来源）的活动 |
+| `garmin-sync-garmin` | 佳明 CN → 佳明 INTL | 不涉及 | 两个佳明账号之间同步，无跨平台循环风险 |
 
 ### 效果
 
