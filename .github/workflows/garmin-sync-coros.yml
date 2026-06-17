@@ -33,12 +33,13 @@ jobs:
         run: |
           echo "PY=$(python -c 'import hashlib, sys;print(hashlib.sha256(sys.version.encode()+sys.executable.encode()).hexdigest())')" >> $GITHUB_OUTPUT
           echo "PIP_CACHE=$(pip cache dir)" >> $GITHUB_OUTPUT
+          echo "REQ_HASH=$(md5sum requirements.txt | cut -d' ' -f1)" >> $GITHUB_OUTPUT
       - name: Cache PIP
         id: cache-pip
         uses: actions/cache@v4
         with:
           path: ${{ steps.set_variables.outputs.PIP_CACHE }}
-          key: Ubuntu-pip-${{ steps.set_variables.outputs.PY }}
+          key: Ubuntu-pip-${{ steps.set_variables.outputs.PY }}-${{ steps.set_variables.outputs.REQ_HASH }}
       - name: Install dependencies
         if: steps.cache-pip.outputs.cache-hit != 'true'
         run: |
