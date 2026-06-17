@@ -7,7 +7,7 @@ sys.path.append(config_path)
 
 from config import DB_DIR, GARMIN_FIT_DIR
 from garmin.garmin_client import GarminClient
-from garmin.garmin_db import GarminDB
+from garmin.garmin_db import GarminDB, SOURCE_GARMIN, SOURCE_COROS
 from coros.coros_client import CorosClient
 from oss.ali_oss_client import AliOssClient
 from oss.aws_oss_client import AwsOssClient
@@ -62,15 +62,40 @@ if __name__ == "__main__":
   all_activities = garminClient.getAllActivities()
   if all_activities == None or len(all_activities) == 0:
       exit()
+  
+  ## 记录活动到 garmin.db，区分来源
+  ## 同时收集从高驰同步来的活动 ID，跳过不上传回高驰
+  skip_source_coros_count = 0
   for activity in all_activities:
       activity_id = activity["activityId"]
-      garmin_db.saveActivity(activity_id)
+      # 检查是否已经是高驰来源（之前通过 coros-sync-garmin 同步过来的）
+      garmin_db.saveActivity(activity_id, SOURCE_GARMIN)
 
   
 
+  ## 过滤掉 source=1（来自高驰同步）的活动，避免数据往返
   un_sync_id_list = garmin_db.getUnSyncActivity()
   if un_sync_id_list == None or len(un_sync_id_list) == 0:
       exit()
+
+  ## 二次过滤：排除 source=1 的活动（高驰来源，不应传回高驰）
+  filtered_id_list = []
+  skipped_count = 0
+  for activity_id in un_sync_id_list:
+      src = garmin_db.getSource(activity_id)
+      if src == SOURCE_COROS:
+          print(f"  跳过活动 {activity_id}（来源：高驰同步至佳明），避免数据往返")
+          garmin_db.updateSyncStatus(activity_id)  # 标记为已同步（跳过）
+          skipped_count += 1
+      else:
+          filtered_id_list.append(activity_id)
+  un_sync_id_list = filtered_id_list
+  print(f"未同步活动中，{skipped_count} 条来自高驰已跳过，{len(un_sync_id_list)} 条待处理")
+
+  if len(un_sync_id_list) == 0:
+      print("没有需要同步到高驰的活动，退出。")
+      exit()
+
   ## 下载未同步活动的FIT文件
   # 修复：下载失败标记异常状态，避免下次重复尝试
   file_path_list = []

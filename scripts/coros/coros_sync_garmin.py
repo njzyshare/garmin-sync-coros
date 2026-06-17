@@ -83,6 +83,13 @@ if __name__ == "__main__":
   ## 初始化DB位置和下载文件位置
   init(coros_db)
 
+  ## 同时初始化 garmin.db（用于记录由高驰同步到佳明的活动来源）
+  garmin_db = GarminDB("garmin.db")
+  garmin_db_full_path = os.path.join(DB_DIR, garmin_db.garmin_db_name)
+  if not os.path.exists(garmin_db_full_path):
+      garmin_db.initDB()
+      print(f"已初始化 garmin.db: {garmin_db_full_path}")
+
   ## 读取 garmin.db 中的佳明活动 ID 集合，用于交叉校验
   garmin_activity_ids = get_garmin_activity_ids()
 
@@ -117,7 +124,7 @@ if __name__ == "__main__":
 
   print(f"未同步活动中，{skipped_count} 条来自佳明同步已跳过，{len(filtered_list)} 条待处理")
 
-  ## 逐个下载并上传
+  ## 逐个下载并上传到佳明，成功后标记来源避免数据往返
   success_count = 0
   fail_count = 0
   for un_sync in filtered_list:
@@ -128,10 +135,14 @@ if __name__ == "__main__":
       file_path = os.path.join(COROS_FIT_DIR, f"{id}.fit")
       with open(file_path, "wb") as fb:
           fb.write(file.data)
-      upload_status = garminClient.upload_activity(file_path)
-      print(f"{id}.fit upload status {upload_status}")
+      upload_status, upload_id = garminClient.upload_activity(file_path)
+      print(f"{id}.fit upload status {upload_status}, upload_id={upload_id}")
       if upload_status in ("SUCCESS", "DUPLICATE_ACTIVITY"):
         coros_db.updateSyncStatus(id)
+        ## 上传成功且获得新 activity_id，标记来源为高驰
+        if upload_status == "SUCCESS" and upload_id:
+            garmin_db.saveCorosSourceActivity(int(upload_id))
+            print(f"  已标记佳明活动 {upload_id} 来源为高驰同步（避免数据往返）")
         success_count += 1
       else:
         print(f"  {id}.fit 上传失败: {upload_status}")

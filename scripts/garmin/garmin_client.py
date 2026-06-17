@@ -104,19 +104,22 @@ class GarminClient:
           response = requests.post(upload_url, headers=self.headers, files=fields)
           res_code = response.status_code
           result = response.json()
-          uploadId =  result.get("detailedImportResult").get('uploadId')
-          isDuplicateUpload = uploadId == None or uploadId == ''
+          upload_id = result.get("detailedImportResult", {}).get('uploadId')
+          isDuplicateUpload = upload_id is None or upload_id == ''
           if res_code == 202 and not isDuplicateUpload:
               status = "SUCCESS"
-          elif res_code == 409 and result.get("detailedImportResult").get("failures")[0].get('messages')[0].get('content') == "Duplicate Activity.":
-              status = "DUPLICATE_ACTIVITY" 
+          elif res_code == 409 and result.get("detailedImportResult", {}).get("failures", [])[0].get('messages', [])[0].get('content') == "Duplicate Activity.":
+              status = "DUPLICATE_ACTIVITY"
+              upload_id = None
+          else:
+              status = "UPLOAD_EXCEPTION"
+              upload_id = None
+          return (status, upload_id)
        except Exception as e:
             print(e)
-            status = "UPLOAD_EXCEPTION"
-       finally:
-            return status
+            return ("UPLOAD_EXCEPTION", None)
     else:
-        return "UPLOAD_EXCEPTION"
+        return ("UPLOAD_EXCEPTION", None)
   
 
 class ActivityUploadFormat(Enum):
