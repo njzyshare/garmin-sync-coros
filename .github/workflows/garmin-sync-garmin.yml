@@ -21,6 +21,9 @@ env:
   ## 通用配置
   GARMIN_NEWEST_NUM: ${{ secrets.GARMIN_NEWEST_NUM }}
 
+  # 启用 Node.js 24 运行 Actions
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: ubuntu-latest

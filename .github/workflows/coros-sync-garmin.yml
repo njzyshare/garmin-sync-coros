@@ -20,6 +20,9 @@ env:
   ### 如果选择 coros_to_garmin 高驰同步佳明
   RUN_TYPE: coros_to_garmin # garmin_to_coros 佳明同步高驰、 coros_to_garmin
 
+  # 启用 Node.js 24 运行 Actions
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
