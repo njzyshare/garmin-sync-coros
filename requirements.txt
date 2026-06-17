@@ -11,6 +11,7 @@ alibabacloud_tea_util>=0.3.13
 alibabacloud_tea_xml>=0.0.2
 aliyun-python-sdk-core>=2.16.0
 aliyun-python-sdk-kms>=2.16.5
+certifi>=2024.0.0
 cloudscraper>=1.2.64
 boto3>=1.35.0
 crcmod>=1.7

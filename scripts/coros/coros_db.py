@@ -54,7 +54,7 @@ class CorosDB:
           
           CREATE TABLE IF NOT EXISTS coros_activity(
               id INTEGER NOT NULL PRIMARY KEY  AUTOINCREMENT ,
-              activity_id INTEGER NOT NULL  , 
+              activity_id INTEGER NOT NULL UNIQUE , 
               sport_type INTEGER NOT NULL  , 
               source INTEGER NOT NULL DEFAULT 0,
               is_sync_garmin INTEGER NOT NULL  DEFAULT 0,

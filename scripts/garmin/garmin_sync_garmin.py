@@ -134,7 +134,7 @@ def phase2_upload_to_intl(downloaded_files, cross_region_db):
     intl_email = SYNC_CONFIG['GARMIN_INTL_EMAIL']
     intl_password = SYNC_CONFIG['GARMIN_INTL_PASSWORD']
     intl_auth_domain = SYNC_CONFIG.get('GARMIN_INTL_AUTH_DOMAIN', '')
-    newest_num = int(SYNC_CONFIG.get('GARMIN_NEWEST_NUM', 10000))
+    newest_num = int(SYNC_CONFIG.get('GARMIN_NEWEST_NUM', 100))
 
     # 清除 garth 的 CN 登录态，切换到 INTL
     print("切换登录到 Garmin 国际区...")
@@ -156,17 +156,17 @@ def phase2_upload_to_intl(downloaded_files, cross_region_db):
 
         try:
             print(f"  上传活动 {activity_id}...")
-            result = target_client.upload_activity(file_path)
-            if result == "SUCCESS":
-                print(f"    ✅ 上传成功")
+            upload_status, upload_id = target_client.upload_activity(file_path)
+            if upload_status == "SUCCESS":
+                print(f"    ✅ 上传成功, upload_id={upload_id}")
                 cross_region_db.updateSyncStatus(activity_id)
                 success_count += 1
-            elif result == "DUPLICATE_ACTIVITY":
+            elif upload_status == "DUPLICATE_ACTIVITY":
                 print(f"    ⏭️  重复活动，标记为已同步")
                 cross_region_db.updateSyncStatus(activity_id)
                 success_count += 1
             else:
-                print(f"    ❌ 上传失败: {result}")
+                print(f"    ❌ 上传失败: {upload_status}")
                 cross_region_db.updateExceptionSyncStatus(activity_id)
                 fail_count += 1
         except Exception as err:

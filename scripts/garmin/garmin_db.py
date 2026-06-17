@@ -20,15 +20,15 @@ class GarminDB:
 
      ## 保存活动，默认来源为佳明原生
     def saveActivity(self, id, source=SOURCE_GARMIN):
-        exists_select_sql = 'SELECT * FROM garmin_activity WHERE activity_id = ?'
+        """原子插入，已存在则不操作（依赖 activity_id UNIQUE 约束）"""
         with SqliteDB(self._garmin_db_name) as db:
-            exists_query_set = db.execute(exists_select_sql, (id,)).fetchall()
-            query_size = len(exists_query_set)
-            if query_size == 0:
-              db.execute('insert into garmin_activity (activity_id, source) values (?,?)', (id, source))
+            db.execute(
+                'INSERT OR IGNORE INTO garmin_activity (activity_id, source) VALUES (?, ?)',
+                (id, source)
+            )
     
     def saveActivityIfNotExists(self, id, source=SOURCE_GARMIN):
-        """与 saveActivity 相同，仅在不存在时插入，语义明确"""
+        """与 saveActivity 相同，语义别名"""
         return self.saveActivity(id, source)
     
     def getUnSyncActivity(self):
@@ -99,7 +99,7 @@ class GarminDB:
           db.execute('''
           CREATE TABLE IF NOT EXISTS garmin_activity(
               id INTEGER NOT NULL PRIMARY KEY  AUTOINCREMENT ,
-              activity_id INTEGER NOT NULL  , 
+              activity_id INTEGER NOT NULL UNIQUE , 
               source INTEGER NOT NULL  DEFAULT 0,
               is_sync_coros INTEGER NOT NULL  DEFAULT 0,
               create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

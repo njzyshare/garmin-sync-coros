@@ -22,11 +22,8 @@ SYNC_CONFIG = {
 }
 
 def init(coros_db):
-    ## 判断RQ数据库是否存在
     print(os.path.join(DB_DIR, coros_db.coros_db_name))
-    if not os.path.exists(os.path.join(DB_DIR, coros_db.coros_db_name)):
-        ## 初始化建表
-        coros_db.initDB()
+    coros_db.initDB()  # 始终执行，CREATE TABLE IF NOT EXISTS 安全
     if not os.path.exists(COROS_FIT_DIR):
         os.mkdir(COROS_FIT_DIR)
 
@@ -60,10 +57,8 @@ if __name__ == "__main__":
 
   ## 同时初始化 garmin.db（用于记录由高驰同步到佳明的活动来源）
   garmin_db = GarminDB("garmin.db")
-  garmin_db_full_path = os.path.join(DB_DIR, garmin_db.garmin_db_name)
-  if not os.path.exists(garmin_db_full_path):
-      garmin_db.initDB()
-      print(f"已初始化 garmin.db: {garmin_db_full_path}")
+  garmin_db.initDB()  # 始终执行，CREATE TABLE IF NOT EXISTS 安全
+  print(f"已初始化 garmin.db: {os.path.join(DB_DIR, garmin_db.garmin_db_name)}")
 
   ## 读取 garmin_coros_mapping 中已记录的高驰 labelId 集合
   ## 用于判断高驰上的活动是否源自佳明同步

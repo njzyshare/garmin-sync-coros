@@ -27,8 +27,7 @@ SYNC_CONFIG = {
 def init(garmin_db):
     """初始化 DB 和下载目录"""
     print(os.path.join(DB_DIR, garmin_db.garmin_db_name))
-    if not os.path.exists(os.path.join(DB_DIR, garmin_db.garmin_db_name)):
-        garmin_db.initDB()
+    garmin_db.initDB()  # 始终执行，CREATE TABLE IF NOT EXISTS 安全
     if not os.path.exists(GARMIN_FIT_DIR):
         os.mkdir(GARMIN_FIT_DIR)
 
