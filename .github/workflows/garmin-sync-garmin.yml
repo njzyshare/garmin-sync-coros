@@ -3,8 +3,8 @@ name: garmin-sync-garmin
 on:
   workflow_dispatch:
   schedule:
-    - cron: '15 4 * * *'
-    - cron: '15 15 * * *'
+    - cron: '30 4 * * *'
+    - cron: '30 15 * * *'
 env:
   GITHUB_NAME: njzyshare
   GITHUB_EMAIL: feimummy@126.com
