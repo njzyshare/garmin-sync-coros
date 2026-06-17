@@ -1,4 +1,4 @@
-name: garmin-sync-coros
+name: garmin-coros-sync-plus
 
 on:
   workflow_dispatch:
