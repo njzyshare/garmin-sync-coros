@@ -70,8 +70,8 @@
 | 工作流 | 方向 | 防护 | 原理 |
 |--------|------|------|------|
 | `coros-sync-garmin` | 高驰 → 佳明 CN | 映射表 | 跳过映射表中已有的高驰活动 |
-| `garmin-sync-coros` | 佳明 CN → 高驰 | source 字段 | 跳过 source=1（高驰来源）的活动 |
-| `garmin-sync-garmin` | 佳明 CN → 佳明 INTL | 不涉及 | 两个佳明账号之间同步，无跨平台循环风险 |
+| `garmin-coros-sync` | 佳明 CN → 高驰 | source 字段 | 跳过 source=1（高驰来源）的活动 |
+| `garmincn-sync-garminintl` | 佳明 CN → 佳明 INTL | 不涉及 | 两个佳明账号之间同步，无跨平台循环风险 |
 
 ### 效果
 
@@ -96,9 +96,9 @@
 | `GARMIN_PASSWORD` | 佳明中国区账号密码 | 全部 | |
 | `GARMIN_AUTH_DOMAIN` | 佳明中国区区域 | 全部 | 国区填 `CN` |
 | `GARMIN_NEWEST_NUM` | 每次拉取活动上限（佳明+高驰） | 全部 | 默认 `50`，同步上限，设为 `0` 全量拉取；建议首次运行可设为 `0`，后续改回 `50` 或者更小的值 |
-| `COROS_EMAIL` | 高驰登录邮箱 | garmin-sync-coros / coros-sync-garmin | |
+| `COROS_EMAIL` | 高驰登录邮箱 | garmin-coros-sync / coros-sync-garmin | |
 | `COROS_PASSWORD` | 高驰登录密码 | 同上 | |
-| `GARMIN_INTL_EMAIL` | 佳明国际区账号邮箱 | garmin-sync-garmin | |
+| `GARMIN_INTL_EMAIL` | 佳明国际区账号邮箱 | garmincn-sync-garminintl | |
 | `GARMIN_INTL_PASSWORD` | 佳明国际区账号密码 | 同上 | |
 | `GARMIN_INTL_AUTH_DOMAIN` | 佳明国际区区域 | 同上 | 填 `COM` |
 
@@ -106,8 +106,8 @@
 
 | 工作流文件 | 同步方向 | 运行时间（北京时间） | 说明 |
 |-----------|:--------:|:------------------:|------|
-| `garmin-sync-coros` | 佳明 CN → 高驰 | 12:00 / 23:00 | 将佳明中国区运动数据同步到高驰 |
-| `garmin-sync-garmin` | 佳明 CN → 佳明 INTL | 12:15 / 23:15 | 将佳明中国区数据跨区同步到佳明国际区 |
+| `garmin-coros-sync` | 佳明 CN → 高驰 | 12:00 / 23:00 | 将佳明中国区运动数据同步到高驰 |
+| `garmincn-sync-garminintl` | 佳明 CN → 佳明 INTL | 12:15 / 23:15 | 将佳明中国区数据跨区同步到佳明国际区 |
 | `coros-sync-garmin` | 高驰 → 佳明 CN | 12:30 / 23:30（默认停用） | 将高驰原生活动同步到佳明中国区 |
 
 > ⚠️ 三个工作流已错开运行时间（各间隔15分钟），避免 DB 文件提交冲突。
@@ -129,10 +129,10 @@
 
 项目包含三个工作流文件，按需修改：
 
-**① garmin-sync-coros.yml**（佳明 CN → 高驰）
+**① garmin-sync-coros.yml**（佳明 CN → 高驰，工作流名为 `garmin-coros-sync`）
 打开文件，将 `GITHUB_NAME` 更改为你的 Github 用户名、`GITHUB_EMAIL` 更改为你的 Github 登录邮箱。
 
-**② garmin-sync-garmin.yml**（佳明 CN → 佳明 INTL）
+**② garmin-sync-garmin.yml**（佳明 CN → 佳明 INTL，工作流名为 `garmincn-sync-garminintl`）
 同上，修改 `GITHUB_NAME` 和 `GITHUB_EMAIL`。
 同时需在 Github Secrets 中配置 `GARMIN_INTL_EMAIL`、`GARMIN_INTL_PASSWORD`、`GARMIN_INTL_AUTH_DOMAIN`。
 

@@ -1,4 +1,4 @@
-name: garmin-sync-garmin
+name: garmincn-sync-garminintl
 
 on:
   workflow_dispatch:
