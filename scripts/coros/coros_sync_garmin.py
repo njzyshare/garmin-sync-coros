@@ -87,6 +87,28 @@ if __name__ == "__main__":
   coros_db = CorosDB(db_name)
   init(coros_db)
 
+  # ========== 初始流程：DB 为空时首次初始化 ==========
+  if coros_db.isFirstRun():
+      print("检测到首次运行，执行初始流程：记录双方现有活动，避免产生重复数据...")
+      init_max = GARMIN_NEWEST_NUM if GARMIN_NEWEST_NUM > 0 else 50
+      # 拉取高驰活动，全部标记为已同步
+      init_coros = corosClient.getAllActivities(max_count=init_max)
+      if init_coros:
+          for act in init_coros:
+              coros_db.saveActivity(act["labelId"], act["sportType"])
+              coros_db.updateSyncStatus(act["labelId"])
+          print(f"  已记录 {len(init_coros)} 条高驰活动")
+      # 拉取佳明活动（用佳明 activityId 写入 coros_activity 表标记已同步）
+      init_garmin = garminClient.getAllActivities()
+      if init_garmin:
+          for act in init_garmin:
+              # saveActivity 需要一个 sport_type，这里传 0（仅做标记用）
+              coros_db.saveActivity(act["activityId"], 0)
+              coros_db.updateSyncStatus(act["activityId"])
+          print(f"  已记录 {len(init_garmin)} 条佳明活动")
+      print("初始流程完成。后续运行将只同步新活动。")
+      exit()
+
   # ========== 获取双方活动列表 ==========
   # 拉取高驰活动列表
   max_count = COROS_NEWEST_NUM if COROS_NEWEST_NUM > 0 else 0

@@ -79,6 +79,35 @@ if __name__ == "__main__":
   corosClient = CorosClient(COROS_EMAIL, COROS_PASSWORD)
   corosClient.login()
 
+  # ========== 初始流程：DB 为空时首次初始化 ==========
+  # 第一次运行时，garmin_coros.db 是空的。如果直接跑同步，会把佳明上
+  # 所有活动都传回高驰（高驰上本来就有），产生重复数据。
+  # 初始化逻辑：拉取双方活动列表，全部标记为已同步，不做上传。
+  # 后续运行时这些活动不会再被处理。
+  garmin_db_first_run = garmin_db.isFirstRun()
+  if garmin_db_first_run:
+      print("检测到首次运行，执行初始流程：记录双方现有活动，避免产生重复数据...")
+      init_max = GARMIN_NEWEST_NUM if GARMIN_NEWEST_NUM > 0 else 50
+      # 拉取佳明活动，全部标记为已同步
+      init_garmin = garminClient.getAllActivities()
+      if init_garmin:
+          for act in init_garmin:
+              garmin_db.saveActivity(act["activityId"])
+              garmin_db.updateSyncStatus(act["activityId"])
+          print(f"  已记录 {len(init_garmin)} 条佳明活动")
+      # 拉取高驰活动（用高驰的 labelId 写入 garmin_activity 表标记已同步）
+      # 注意：labelId 可能和佳明 activityId 冲突，但 garmin_activity 表
+      # 只做去重用，不涉及跨平台比对，所以没问题
+      corosClient.login()
+      init_coros = corosClient.getAllActivities(max_count=init_max)
+      if init_coros:
+          for act in init_coros:
+              garmin_db.saveActivity(act.get("labelId", 0))
+              garmin_db.updateSyncStatus(act.get("labelId", 0))
+          print(f"  已记录 {len(init_coros)} 条高驰活动")
+      print("初始流程完成。后续运行将只同步新活动。")
+      exit()
+
   # ========== 获取双方活动列表 ==========
   # 拉取佳明活动列表
   all_activities = garminClient.getAllActivities()
