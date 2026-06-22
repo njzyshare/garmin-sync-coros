@@ -7,11 +7,12 @@ sys.path.append(config_path)
 
 from config import DB_DIR, GARMIN_FIT_DIR
 from garmin.garmin_client import GarminClient
-from garmin.garmin_db import GarminDB, SOURCE_GARMIN, SOURCE_COROS
+from garmin.garmin_db import GarminDB
 from coros.coros_client import CorosClient
 from oss.ali_oss_client import AliOssClient
 from oss.aws_oss_client import AwsOssClient
 from utils.md5_utils import calculate_md5_file
+from sync_log_db import SyncTimeLogDB
 
 # 配置默认值：NEWEST_NUM=50（增量同步，每次最多处理 50 条）
 SYNC_CONFIG = {
@@ -27,9 +28,21 @@ SYNC_CONFIG = {
 def init(garmin_db):
     """初始化 DB 和下载目录"""
     print(os.path.join(DB_DIR, garmin_db.garmin_db_name))
-    garmin_db.initDB()  # 始终执行，CREATE TABLE IF NOT EXISTS 安全
+    garmin_db.initDB()
     if not os.path.exists(GARMIN_FIT_DIR):
         os.mkdir(GARMIN_FIT_DIR)
+
+
+def get_activity_time(activity):
+    """从佳明活动数据中提取起止时间（ISO UTC 格式）"""
+    start_time = activity.get("startTimeGMT", "")
+    end_time = activity.get("endTimeGMT", "")
+    # 如果 startTimeGMT 不存在，退而求其次用 startTimeLocal
+    if not start_time:
+        start_time = activity.get("startTimeLocal", "")
+        end_time = activity.get("endTimeLocal", "")
+    return start_time, end_time
+
 
 if __name__ == "__main__":
 
@@ -39,8 +52,8 @@ if __name__ == "__main__":
           v = os.getenv(k)
           SYNC_CONFIG[k] = v
   
-  ## db 名称
-  db_name = "garmin.db"
+  ## db 名称（独立文件，避免被其他工作流覆盖）
+  db_name = "garmin_coros.db"
   ## 建立DB链接
   garmin_db = GarminDB(db_name)
   ## 初始化DB位置和下载文件位置
@@ -61,50 +74,66 @@ if __name__ == "__main__":
   if all_activities == None or len(all_activities) == 0:
       exit()
   
-  ## 记录活动到 garmin.db，区分来源
-  ## 已经存在的不覆盖 source（保留已有的 source 标记）
-  skip_source_coros_count = 0
+  ## 初始化共享的时间日志（防重用）
+  sync_log_db = SyncTimeLogDB()
+  sync_log_db.initDB()
+
+  ## 记录活动到 garmin_coros.db（去重）
+  skip_time_overlap_count = 0
   for activity in all_activities:
       activity_id = activity["activityId"]
-      # 如果已存在（之前通过 coros-sync-garmin 同步过来的），保留已有 source 标记
-      existing_source = garmin_db.getSource(activity_id)
-      if existing_source is not None:
-          # 已存在则跳过，保留原有 source 标记
-          pass
-      else:
-          # 新活动，标记为佳明原生
-          garmin_db.saveActivity(activity_id, SOURCE_GARMIN)
+      # 先保存到 DB（去重）
+      garmin_db.saveActivity(activity_id)
 
-  
-
-  ## 过滤掉 source=1（来自高驰同步）的活动，避免数据往返
+  ## 获取未同步活动
   un_sync_id_list = garmin_db.getUnSyncActivity()
   if un_sync_id_list == None or len(un_sync_id_list) == 0:
       exit()
 
-  ## 二次过滤：排除 source=1 的活动（高驰来源，不应传回高驰）
+  ## 时间重叠防重：查 sync_time_log 是否有高驰来源的活动与此时间段重叠
+  ## 如果有，说明这个佳明活动之前已经同步到过高驰，跳过
   filtered_id_list = []
   skipped_count = 0
   for activity_id in un_sync_id_list:
-      src = garmin_db.getSource(activity_id)
-      if src == SOURCE_COROS:
-          print(f"  跳过活动 {activity_id}（来源：高驰同步至佳明），避免数据往返")
-          garmin_db.updateSyncStatus(activity_id)  # 标记为已同步（跳过）
-          skipped_count += 1
-      else:
+      # 从已缓存的活动数据中找这条活动的时间
+      activity_data = None
+      for a in all_activities:
+          if a["activityId"] == activity_id:
+              activity_data = a
+              break
+      if activity_data is None:
+          # 没找到时间信息，直接放行
           filtered_id_list.append(activity_id)
+          continue
+
+      start_time, end_time = get_activity_time(activity_data)
+      if start_time and end_time:
+          if sync_log_db.has_time_overlap('coros', start_time, end_time):
+              print(f"  跳过活动 {activity_id}（{start_time}~{end_time}，高驰已有此时间段记录），避免数据往返")
+              garmin_db.updateSyncStatus(activity_id)
+              skipped_count += 1
+              continue
+      filtered_id_list.append(activity_id)
+
   un_sync_id_list = filtered_id_list
-  print(f"未同步活动中，{skipped_count} 条来自高驰已跳过，{len(un_sync_id_list)} 条待处理")
+  print(f"未同步活动中，{skipped_count} 条因时间重叠跳过，{len(un_sync_id_list)} 条待处理")
 
   if len(un_sync_id_list) == 0:
       print("没有需要同步到高驰的活动，退出。")
       exit()
 
   ## 下载未同步活动的FIT文件
-  # 修复：下载失败标记异常状态，避免下次重复尝试
   file_path_list = []
+  # 记录每条活动的起止时间，上传成功后写 sync_log
+  activity_time_map = {}
   for un_sync_id in un_sync_id_list:
     try:
+      # 找到时间信息
+      for a in all_activities:
+          if a["activityId"] == un_sync_id:
+              activity_time_map[un_sync_id] = get_activity_time(a)
+              break
+
       file = garminClient.downloadFitActivity(un_sync_id)
       file_path = os.path.join(GARMIN_FIT_DIR, f"{un_sync_id}.zip")
       with open(file_path, "wb") as fb:
@@ -126,7 +155,6 @@ if __name__ == "__main__":
       exit()
 
   ## 逐个上传到高驰
-  # 修复：上传失败不exit()，继续处理下一个活动
   success_count = 0
   fail_count = 0
   for un_sync_info in file_path_list:
@@ -146,24 +174,14 @@ if __name__ == "__main__":
       if upload_result:
           garmin_db.updateSyncStatus(un_sync_id)
           success_count += 1
-          # 尝试从响应中提取高驰 labelId，建立映射关系
-          label_id = None
-          if isinstance(upload_result, dict):
-              for key in ("labelId", "activityId", "id", "activity_id"):
-                  if key in upload_result:
-                      try:
-                          label_id = int(upload_result[key])
-                          break
-                      except (ValueError, TypeError):
-                          pass
-          if label_id:
+          # 记录到 sync_time_log（时间重叠防重用）
+          start_time, end_time = activity_time_map.get(un_sync_id, ("", ""))
+          if start_time and end_time:
               try:
-                  garmin_db.saveGarminCorosMapping(int(un_sync_id), label_id)
-                  print(f"  已记录映射：佳明 {un_sync_id} ↔ 高驰 {label_id}")
+                  sync_log_db.save_sync_log(str(un_sync_id), 'garmin_cn', start_time, end_time, 'coros')
+                  print(f"  已记录 sync_log：佳明 {un_sync_id} → 高驰 ({start_time}~{end_time})")
               except Exception as e:
-                  print(f"  保存映射失败（可忽略）: {e}")
-          else:
-              print(f"  ⚠️ 警告：无法从高驰响应中提取 labelId，双向防重机制可能失效")
+                  print(f"  记录 sync_log 失败（可忽略）: {e}")
       else:
           print(f"  活动 {un_sync_id}.zip 上传失败: {upload_result}")
           garmin_db.updateExceptionSyncStatus(un_sync_id)
@@ -174,6 +192,10 @@ if __name__ == "__main__":
       fail_count += 1
 
   print(f"\n同步完成。成功: {success_count}, 失败: {fail_count}")
+
+  ## 清理 sync_log 旧记录（按 GARMIN_NEWEST_NUM 保留）
+  max_records = max(GARMIN_NEWEST_NUM * 2, 50) if GARMIN_NEWEST_NUM > 0 else 100
+  sync_log_db.clean_old_records(max_records_per_platform=max_records)
 
   ## 下载的临时文件清理
   if os.path.exists(GARMIN_FIT_DIR):

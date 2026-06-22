@@ -1,24 +1,22 @@
-name: garmincn-sync-garminintl
+name: garminintl-sync-garmincn
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '30 4 * * *'
-    - cron: '30 15 * * *'
+    - cron: '45 4 * * *'
+    - cron: '45 15 * * *'
 env:
   GITHUB_NAME: njzyshare
   GITHUB_EMAIL: feimummy@126.com
-  ## 佳明中国区配置（源账号）
-  GARMIN_AUTH_DOMAIN: ${{ secrets.GARMIN_AUTH_DOMAIN }}
-  GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
-  GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
-
-  ## 佳明国际区配置（目标账号）
+  ## 源账号（INTL 国际区）
   GARMIN_INTL_EMAIL: ${{ secrets.GARMIN_INTL_EMAIL }}
   GARMIN_INTL_PASSWORD: ${{ secrets.GARMIN_INTL_PASSWORD }}
   GARMIN_INTL_AUTH_DOMAIN: ${{ secrets.GARMIN_INTL_AUTH_DOMAIN }}
 
-  ## 通用配置
+  ## 目标账号（CN 中国区）
+  GARMIN_EMAIL: ${{ secrets.GARMIN_EMAIL }}
+  GARMIN_PASSWORD: ${{ secrets.GARMIN_PASSWORD }}
+  GARMIN_AUTH_DOMAIN: ${{ secrets.GARMIN_AUTH_DOMAIN }}
   GARMIN_NEWEST_NUM: ${{ secrets.GARMIN_NEWEST_NUM }}
 
   # 启用 Node.js 24 运行 Actions
@@ -52,9 +50,15 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-      - name: Run Garmin Cross-Region Sync
+      - name: Download sync log
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          name: sync-log
+          path: db/
+          if_no_artifact_found: warn
+      - name: Run Intl to Cn Sync
         run: |
-          python scripts/garmin/garmin_sync_garmin.py
+          python scripts/garmin/intl_sync_cn.py
       - name: Upload sync log
         uses: actions/upload-artifact@v4
         with:
@@ -66,12 +70,6 @@ jobs:
         run: |
           git config --local user.email "${{ env.GITHUB_EMAIL }}"
           git config --local user.name "${{ env.GITHUB_NAME }}"
-          git add db/cn_intl.db
-          git commit -m 'feat(sync): cross-region garmin sync' || echo "nothing to commit"
+          git add db/intl_cn.db
+          git commit -m 'update intl cn sync' || echo "nothing to commit"
           git push || echo "nothing to push"
-      - name: Download sync log
-        uses: dawidd6/action-download-artifact@v6
-        with:
-          name: sync-log
-          path: db/
-          if_no_artifact_found: warn

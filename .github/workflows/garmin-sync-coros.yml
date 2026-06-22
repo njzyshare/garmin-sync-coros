@@ -52,10 +52,23 @@ jobs:
       - name: Run Garmin Sync
         run: |
           python scripts/garmin/garmin_sync_coros.py
+      - name: Upload sync log
+        uses: actions/upload-artifact@v4
+        with:
+          name: sync-log
+          path: db/sync_log.db
+          overwrite: true
+          retention-days: 1
       - name: Push new cookie
         run: |
           git config --local user.email "${{ env.GITHUB_EMAIL }}"
           git config --local user.name "${{ env.GITHUB_NAME }}"
-          git add .
-          git commit -m 'update garmin activity' || echo "nothing to commit"
+          git add db/garmin_coros.db
+          git commit -m 'update garmin coros sync' || echo "nothing to commit"
           git push || echo "nothing to push"
+      - name: Download sync log
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          name: sync-log
+          path: db/
+          if_no_artifact_found: warn

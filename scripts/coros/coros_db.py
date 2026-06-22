@@ -51,12 +51,10 @@ class CorosDB:
     def initDB(self):
       with SqliteDB(os.path.join(DB_DIR, self._coros_db_name)) as db:
           db.execute('''
-          
           CREATE TABLE IF NOT EXISTS coros_activity(
               id INTEGER NOT NULL PRIMARY KEY  AUTOINCREMENT ,
               activity_id INTEGER NOT NULL UNIQUE , 
               sport_type INTEGER NOT NULL  , 
-              source INTEGER NOT NULL DEFAULT 0,
               is_sync_garmin INTEGER NOT NULL  DEFAULT 0,
               create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
               update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
