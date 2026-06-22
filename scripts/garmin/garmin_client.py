@@ -27,6 +27,10 @@ class GarminClient:
   ## 登录装饰器
   def login(func):    
     def ware(self, *args, **kwargs):    
+      # 临时清空 garth 客户端，强制下次重新登录
+      import garth as _garth
+      if hasattr(_garth, 'client') and _garth.client:
+          _garth.client.garth_token = None
       try:
          garth.client.username
       except Exception:
