@@ -35,12 +35,8 @@ def init(garmin_db):
 
 def get_activity_time(activity):
     """从佳明活动数据中提取起止时间（ISO UTC 格式）"""
-    start_time = activity.get("startTimeGMT", "")
-    end_time = activity.get("endTimeGMT", "")
-    # 如果 startTimeGMT 不存在，退而求其次用 startTimeLocal
-    if not start_time:
-        start_time = activity.get("startTimeLocal", "")
-        end_time = activity.get("endTimeLocal", "")
+    start_time = activity.get("startTimeGMT", "") or activity.get("startTimeLocal", "")
+    end_time = activity.get("endTimeGMT", "") or activity.get("endTimeLocal", "")
     return start_time, end_time
 
 
@@ -79,7 +75,6 @@ if __name__ == "__main__":
   sync_log_db.initDB()
 
   ## 记录活动到 garmin_coros.db（去重）
-  skip_time_overlap_count = 0
   for activity in all_activities:
       activity_id = activity["activityId"]
       # 先保存到 DB（去重）

@@ -22,10 +22,6 @@ class GarminDB:
                 (id,)
             )
     
-    def saveActivityIfNotExists(self, id, source=SOURCE_GARMIN):
-        """与 saveActivity 相同，语义别名"""
-        return self.saveActivity(id, source)
-    
     def getUnSyncActivity(self):
         select_un_upload_sql = 'SELECT activity_id FROM garmin_activity WHERE is_sync_coros = 0 limit 100'
         with SqliteDB(self._garmin_db_name) as db:

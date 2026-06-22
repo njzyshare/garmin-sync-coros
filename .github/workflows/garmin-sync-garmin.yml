@@ -30,7 +30,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python 3.11
+      - name: Set up Python 3.13
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
@@ -52,6 +52,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+      - name: Download sync log
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          name: sync-log
+          path: db/
+          if_no_artifact_found: warn
       - name: Run Garmin Cross-Region Sync
         run: |
           python scripts/garmin/garmin_sync_garmin.py
@@ -69,9 +75,3 @@ jobs:
           git add db/cn_intl.db
           git commit -m 'feat(sync): cross-region garmin sync' || echo "nothing to commit"
           git push || echo "nothing to push"
-      - name: Download sync log
-        uses: dawidd6/action-download-artifact@v6
-        with:
-          name: sync-log
-          path: db/
-          if_no_artifact_found: warn

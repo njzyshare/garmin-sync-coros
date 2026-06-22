@@ -74,14 +74,24 @@ class SyncTimeLogDB:
                 'SELECT DISTINCT source_platform FROM sync_time_log'
             ).fetchall()
             for (platform,) in platforms:
+                # 先统计该平台的总记录数
+                row = db.execute(
+                    'SELECT COUNT(*) FROM sync_time_log WHERE source_platform = ?',
+                    (platform,)
+                ).fetchone()
+                count = row[0] if row else 0
+                if count <= max_records_per_platform:
+                    continue
+                # 删除超出 limit 的最旧记录
+                delete_count = count - max_records_per_platform
                 db.execute(
                     'DELETE FROM sync_time_log WHERE id IN ('
                     '  SELECT id FROM sync_time_log '
                     '  WHERE source_platform = ? '
-                    '  ORDER BY id DESC '
-                    '  LIMIT -1 OFFSET ?'
+                    '  ORDER BY id ASC '
+                    '  LIMIT ?'
                     ')',
-                    (platform, max_records_per_platform)
+                    (platform, delete_count)
                 )
 
     def count_records(self):

@@ -29,7 +29,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-      - name: Set up Python 3.11
+      - name: Set up Python 3.13
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
@@ -52,6 +52,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
+      - name: Download sync log
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          name: sync-log
+          path: db/
+          if_no_artifact_found: warn
       - name: Run Garmin Sync Coros
         if: env.RUN_TYPE == 'garmin_to_coros'
         run: |
@@ -74,9 +80,3 @@ jobs:
           git add db/coros_garmin.db
           git commit -m 'faet(sync): new upload activity' || echo "nothing to commit"
           git push || echo "nothing to push"
-      - name: Download sync log
-        uses: dawidd6/action-download-artifact@v6
-        with:
-          name: sync-log
-          path: db/
-          if_no_artifact_found: warn

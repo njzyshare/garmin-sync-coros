@@ -66,7 +66,7 @@
 
 ## 四大同步工作流说明
 
-| 工作流文件 | 同步方向 | 运行时间（北京时间） | 独立 DB | 说明 |
+| 工作流名称 | 同步方向 | 运行时间（北京时间） | 独立 DB | 说明 |
 |-----------|:--------:|:------------------:|:-------:|------|
 | `garmin-coros-sync` | 佳明 CN → 高驰 | 12:00 / 23:00 | `garmin_coros.db` | 将佳明中国区活动同步到高驰 |
 | `coros-sync-garmin` | 高驰 → 佳明 CN | 12:15 / 23:15 | `coros_garmin.db` | 将高驰活动同步到佳明中国区 |
@@ -133,7 +133,7 @@
 更改完成后点击右上角 **Commit changes...** 提交即可。
 
 ## 重新fork项目步骤
-点击页面上**Sync Frok**然后点击**Dicard commit**即可
+点击页面上**Sync Fork**然后点击**Discard commit**即可
 ![fork sync](doc/image.png)
 
 ## 删除db步骤
