@@ -32,6 +32,3 @@ config.yaml
 /webdav-fit
 /garmin-fit
 /coros-fit
-
-# Sync log（共享时间日志，不 commit，通过 Artifact 传递）
-db/sync_log.db

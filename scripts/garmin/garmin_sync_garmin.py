@@ -28,7 +28,6 @@ import garth
 from config import DB_DIR, GARMIN_FIT_DIR
 from garmin.garmin_client import GarminClient
 from garmin.garmin_db_cross_region import GarminCrossRegionDB
-from sync_log_db import SyncTimeLogDB
 
 import shutil
 
@@ -77,7 +76,7 @@ def clear_garth_session():
             pass
 
 
-def phase1_download_from_cn(source_client, cross_region_db, sync_log_db):
+def phase1_download_from_cn(source_client, cross_region_db):
     """Phase 1: 登录 Garmin CN，获取活动列表，下载未同步的 FIT 文件"""
     print("=" * 60)
     print("Phase 1: 从 Garmin 中国区获取活动...")
@@ -86,25 +85,18 @@ def phase1_download_from_cn(source_client, cross_region_db, sync_log_db):
     all_activities = source_client.getAllActivities()
     if not all_activities or len(all_activities) == 0:
         print("未获取到任何活动，退出。")
-        return None, {}
+        return None
 
     print(f"获取到 {len(all_activities)} 条活动，写入数据库...")
-    # 保存活动时间信息供 sync_log 使用
-    activity_time_map = {}
     for activity in all_activities:
         activity_id = activity["activityId"]
         cross_region_db.saveActivity(activity_id)
-        # 提取时间
-        start_time = activity.get("startTimeGMT", "") or activity.get("startTimeLocal", "")
-        end_time = activity.get("endTimeGMT", "") or activity.get("endTimeLocal", "")
-        if start_time and end_time:
-            activity_time_map[activity_id] = (start_time, end_time)
 
     # 获取未同步的活动列表
     un_sync_id_list = cross_region_db.getUnSyncActivity()
     if not un_sync_id_list or len(un_sync_id_list) == 0:
         print("没有需要同步的新活动，全部已同步完成。")
-        return None, {}
+        return None
 
     print(f"需要同步的活动数量: {len(un_sync_id_list)}")
 
@@ -126,11 +118,11 @@ def phase1_download_from_cn(source_client, cross_region_db, sync_log_db):
             cross_region_db.updateExceptionSyncStatus(activity_id)
 
     print(f"Phase 1 完成，共下载 {len(downloaded_files)} 个 FIT 文件。")
-    return downloaded_files, activity_time_map
+    return downloaded_files
 
 
-def phase2_upload_to_intl(downloaded_files, cross_region_db, sync_log_db, activity_time_map):
-    """Phase 2: 登录 Garmin INTL，上传 FIT 文件，记录 sync_log"""
+def phase2_upload_to_intl(downloaded_files, cross_region_db):
+    """Phase 2: 登录 Garmin INTL，上传 FIT 文件"""
     print("=" * 60)
     print("Phase 2: 上传到 Garmin 国际区...")
     print("=" * 60)
@@ -168,14 +160,6 @@ def phase2_upload_to_intl(downloaded_files, cross_region_db, sync_log_db, activi
             if upload_status == "SUCCESS":
                 print(f"    ✅ 上传成功, upload_id={upload_id}")
                 cross_region_db.updateSyncStatus(activity_id)
-                # 记录 sync_log
-                if activity_id in activity_time_map:
-                    start_time, end_time = activity_time_map[activity_id]
-                    try:
-                        sync_log_db.save_sync_log(str(activity_id), 'garmin_cn', start_time, end_time, 'garmin_intl')
-                        print(f"    📝 已记录 sync_log：CN {activity_id} → INTL ({start_time}~{end_time})")
-                    except Exception as e:
-                        print(f"    记录 sync_log 失败（可忽略）: {e}")
                 success_count += 1
             elif upload_status == "DUPLICATE_ACTIVITY":
                 print(f"    ⏭️  重复活动，标记为已同步")
@@ -222,10 +206,6 @@ def main():
     cross_region_db = GarminCrossRegionDB(db_name)
     cross_region_db.initDB()
 
-    # 初始化共享的时间日志（防重用）
-    sync_log_db = SyncTimeLogDB()
-    sync_log_db.initDB()
-
     # ---- Phase 1: 从 CN 下载 ----
     cn_email = SYNC_CONFIG['GARMIN_EMAIL']
     cn_password = SYNC_CONFIG['GARMIN_PASSWORD']
@@ -233,18 +213,14 @@ def main():
     newest_num = int(SYNC_CONFIG.get('GARMIN_NEWEST_NUM', 50))
 
     source_client = GarminClient(cn_email, cn_password, cn_auth_domain, newest_num)
-    downloaded_files, activity_time_map = phase1_download_from_cn(source_client, cross_region_db, sync_log_db)
+    downloaded_files = phase1_download_from_cn(source_client, cross_region_db)
 
     if not downloaded_files:
         print("没有需要同步的活动，退出。")
         return
 
     # ---- Phase 2: 上传到 INTL ----
-    phase2_upload_to_intl(downloaded_files, cross_region_db, sync_log_db, activity_time_map)
-
-    # 清理 sync_log 旧记录
-    max_records = max(newest_num * 2, 50) if newest_num > 0 else 100
-    sync_log_db.clean_old_records(max_records_per_platform=max_records)
+    phase2_upload_to_intl(downloaded_files, cross_region_db)
 
     # 清理下载的临时文件
     if os.path.exists(GARMIN_FIT_DIR):

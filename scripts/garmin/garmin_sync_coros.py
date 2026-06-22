@@ -12,7 +12,6 @@ from coros.coros_client import CorosClient
 from oss.ali_oss_client import AliOssClient
 from oss.aws_oss_client import AwsOssClient
 from utils.md5_utils import calculate_md5_file
-from sync_log_db import SyncTimeLogDB
 
 # 配置默认值：NEWEST_NUM=50（增量同步，每次最多处理 50 条）
 SYNC_CONFIG = {
@@ -38,6 +37,19 @@ def get_activity_time(activity):
     start_time = activity.get("startTimeGMT", "") or activity.get("startTimeLocal", "")
     end_time = activity.get("endTimeGMT", "") or activity.get("endTimeLocal", "")
     return start_time, end_time
+
+
+def has_time_overlap(target_start, target_end, reference_list, get_start_end_func):
+    """
+    检查目标时间段是否与参考活动列表中的任何活动有时间重叠。
+    重叠条件：A.start < B.end AND A.end > B.start
+    """
+    for ref in reference_list:
+        ref_start, ref_end = get_start_end_func(ref)
+        if ref_start and ref_end:
+            if ref_start < target_end and ref_end > target_start:
+                return True
+    return False
 
 
 if __name__ == "__main__":
@@ -66,44 +78,61 @@ if __name__ == "__main__":
   COROS_PASSWORD = SYNC_CONFIG["COROS_PASSWORD"]
   corosClient = CorosClient(COROS_EMAIL, COROS_PASSWORD)
   corosClient.login()
+
+  # ========== 获取双方活动列表 ==========
+  # 拉取佳明活动列表
   all_activities = garminClient.getAllActivities()
   if all_activities == None or len(all_activities) == 0:
       exit()
-  
-  ## 初始化共享的时间日志（防重用）
-  sync_log_db = SyncTimeLogDB()
-  sync_log_db.initDB()
 
-  ## 记录活动到 garmin_coros.db（去重）
+  # 拉取高驰活动列表（用于时间重叠比对，防回传）
+  coros_max_count = GARMIN_NEWEST_NUM if GARMIN_NEWEST_NUM > 0 else 200
+  coros_activities = corosClient.getAllActivities(max_count=coros_max_count)
+  if coros_activities:
+      print(f"获取到高驰最近 {len(coros_activities)} 条活动（用于时间重叠参考）")
+  else:
+      coros_activities = []
+
+  # ========== 写入佳明活动到 DB ==========
   for activity in all_activities:
       activity_id = activity["activityId"]
-      # 先保存到 DB（去重）
       garmin_db.saveActivity(activity_id)
 
-  ## 获取未同步活动
+  # ========== 时间重叠防重 ==========
+  # 对每个待同步的佳明活动，检查高驰侧是否有时间重叠的活动
+  # 如果有，说明这条佳明活动在高驰上已经有对应的原生记录（或之前同步过去的），跳过
   un_sync_id_list = garmin_db.getUnSyncActivity()
   if un_sync_id_list == None or len(un_sync_id_list) == 0:
       exit()
 
-  ## 时间重叠防重：查 sync_time_log 是否有高驰来源的活动与此时间段重叠
-  ## 如果有，说明这个佳明活动之前已经同步到过高驰，跳过
   filtered_id_list = []
   skipped_count = 0
+
   for activity_id in un_sync_id_list:
-      # 从已缓存的活动数据中找这条活动的时间
+      # 找到该活动的起止时间
       activity_data = None
       for a in all_activities:
           if a["activityId"] == activity_id:
               activity_data = a
               break
       if activity_data is None:
-          # 没找到时间信息，直接放行
           filtered_id_list.append(activity_id)
           continue
 
       start_time, end_time = get_activity_time(activity_data)
-      if start_time and end_time:
-          if sync_log_db.has_time_overlap('coros', start_time, end_time):
+      if start_time and end_time and coros_activities:
+          # 比对高驰活动列表
+          def get_coros_time(a):
+              import datetime
+              st = a.get("startTime", 0)
+              et = a.get("endTime", 0)
+              if st and et:
+                  return (
+                      datetime.datetime.fromtimestamp(st, tz=datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                      datetime.datetime.fromtimestamp(et, tz=datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+                  )
+              return ("", "")
+          if has_time_overlap(start_time, end_time, coros_activities, get_coros_time):
               print(f"  跳过活动 {activity_id}（{start_time}~{end_time}，高驰已有此时间段记录），避免数据往返")
               garmin_db.updateSyncStatus(activity_id)
               skipped_count += 1
@@ -117,18 +146,10 @@ if __name__ == "__main__":
       print("没有需要同步到高驰的活动，退出。")
       exit()
 
-  ## 下载未同步活动的FIT文件
+  # ========== 下载 FIT 文件 ==========
   file_path_list = []
-  # 记录每条活动的起止时间，上传成功后写 sync_log
-  activity_time_map = {}
   for un_sync_id in un_sync_id_list:
     try:
-      # 找到时间信息
-      for a in all_activities:
-          if a["activityId"] == un_sync_id:
-              activity_time_map[un_sync_id] = get_activity_time(a)
-              break
-
       file = garminClient.downloadFitActivity(un_sync_id)
       file_path = os.path.join(GARMIN_FIT_DIR, f"{un_sync_id}.zip")
       with open(file_path, "wb") as fb:
@@ -149,13 +170,12 @@ if __name__ == "__main__":
       print("没有成功下载的活动，退出。")
       exit()
 
-  ## 逐个上传到高驰
+  # ========== 上传到高驰 ==========
   success_count = 0
   fail_count = 0
   for un_sync_info in file_path_list:
     try:
       client = None
-      ## 中国区使用阿里云OSS
       if corosClient.regionId == 2:
          client = AliOssClient()
       elif corosClient.regionId == 1 or corosClient.regionId == 3:
@@ -169,14 +189,6 @@ if __name__ == "__main__":
       if upload_result:
           garmin_db.updateSyncStatus(un_sync_id)
           success_count += 1
-          # 记录到 sync_time_log（时间重叠防重用）
-          start_time, end_time = activity_time_map.get(un_sync_id, ("", ""))
-          if start_time and end_time:
-              try:
-                  sync_log_db.save_sync_log(str(un_sync_id), 'garmin_cn', start_time, end_time, 'coros')
-                  print(f"  已记录 sync_log：佳明 {un_sync_id} → 高驰 ({start_time}~{end_time})")
-              except Exception as e:
-                  print(f"  记录 sync_log 失败（可忽略）: {e}")
       else:
           print(f"  活动 {un_sync_id}.zip 上传失败: {upload_result}")
           garmin_db.updateExceptionSyncStatus(un_sync_id)
@@ -188,11 +200,7 @@ if __name__ == "__main__":
 
   print(f"\n同步完成。成功: {success_count}, 失败: {fail_count}")
 
-  ## 清理 sync_log 旧记录（按 GARMIN_NEWEST_NUM 保留）
-  max_records = max(GARMIN_NEWEST_NUM * 2, 50) if GARMIN_NEWEST_NUM > 0 else 100
-  sync_log_db.clean_old_records(max_records_per_platform=max_records)
-
-  ## 下载的临时文件清理
+  # ========== 清理临时文件 ==========
   if os.path.exists(GARMIN_FIT_DIR):
       import shutil
       shutil.rmtree(GARMIN_FIT_DIR)
