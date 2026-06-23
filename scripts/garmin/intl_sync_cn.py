@@ -70,9 +70,19 @@ def clear_garth_session():
 
 def get_activity_time(activity):
     """从佳明活动数据中提取起止时间（ISO UTC 格式）"""
-    start_time = activity.get("startTimeGMT", "") or activity.get("startTimeLocal", "")
-    end_time = activity.get("endTimeGMT", "") or activity.get("endTimeLocal", "")
-    return start_time, end_time
+    start = activity.get("startTimeGMT", "") or activity.get("startTimeLocal", "")
+    end = activity.get("endTimeGMT", "") or activity.get("endTimeLocal", "")
+    return start, end
+
+
+def has_time_overlap(target_start, target_end, reference_list):
+    """检查目标时间段是否与参考活动列表中的任何活动有时间重叠"""
+    for ref in reference_list:
+        ref_start = ref.get("startTimeGMT", "") or ref.get("startTimeLocal", "")
+        ref_end = ref.get("endTimeGMT", "") or ref.get("endTimeLocal", "")
+        if ref_start and ref_end and ref_start < target_end and ref_end > target_start:
+            return True
+    return False
 
 
 def phase1_download_from_intl(source_client, cross_region_db):
@@ -98,6 +108,15 @@ def phase1_download_from_intl(source_client, cross_region_db):
 
     print(f"需要同步的活动数量: {len(un_sync_id_list)}")
 
+    # 提取未同步活动的时间信息
+    activity_time_map = {}
+    for activity in all_activities:
+        aid = activity["activityId"]
+        if aid in un_sync_id_list:
+            start_time, end_time = get_activity_time(activity)
+            if start_time and end_time:
+                activity_time_map[aid] = (start_time, end_time)
+
     # 下载 FIT 文件
     downloaded_files = []
     for activity_id in un_sync_id_list:
@@ -107,7 +126,13 @@ def phase1_download_from_intl(source_client, cross_region_db):
             file_path = os.path.join(GARMIN_FIT_DIR, f"{activity_id}.zip")
             with open(file_path, "wb") as fb:
                 fb.write(file_data)
-            downloaded_files.append({"activity_id": activity_id, "file_path": file_path})
+            start_end = activity_time_map.get(activity_id, ("", ""))
+            downloaded_files.append({
+                "activity_id": activity_id,
+                "file_path": file_path,
+                "start_time": start_end[0],
+                "end_time": start_end[1],
+            })
         except Exception as err:
             print(f"  下载活动 {activity_id} 失败: {err}")
             cross_region_db.updateExceptionSyncStatus(activity_id)
@@ -117,7 +142,7 @@ def phase1_download_from_intl(source_client, cross_region_db):
 
 
 def phase2_upload_to_cn(downloaded_files, cross_region_db):
-    """Phase 2: 登录 Garmin CN，上传 FIT 文件"""
+    """Phase 2: 登录 Garmin CN，上传 FIT 文件（含时间重叠防重）"""
     print("=" * 60)
     print("Phase 2: 上传到 Garmin 中国区...")
     print("=" * 60)
@@ -136,12 +161,30 @@ def phase2_upload_to_cn(downloaded_files, cross_region_db):
 
     target_client = GarminClient(cn_email, cn_password, cn_auth_domain, newest_num)
 
+    # 拉取目标平台活动列表（用于时间重叠比对，防往返）
+    target_activities = target_client.getAllActivities()
+    if target_activities:
+        print(f"获取到中国区最近 {len(target_activities)} 条活动（用于时间重叠参考）")
+    else:
+        print("⚠️ 获取中国区活动列表失败，将跳过时间重叠检查")
+
+    time_overlap_skipped = 0
     success_count = 0
     fail_count = 0
 
     for item in downloaded_files:
         activity_id = item["activity_id"]
         file_path = item["file_path"]
+        start_time = item.get("start_time", "")
+        end_time = item.get("end_time", "")
+
+        # 时间重叠检查：如果目标平台已有同时间段活动，跳过上传
+        if start_time and end_time and target_activities:
+            if has_time_overlap(start_time, end_time, target_activities):
+                print(f"  跳过活动 {activity_id}（{start_time}~{end_time}，中国区已有此时间段记录），避免数据往返")
+                cross_region_db.updateSyncStatus(activity_id)
+                time_overlap_skipped += 1
+                continue
 
         if not os.path.exists(file_path):
             print(f"  文件不存在，跳过 {activity_id}")
@@ -157,7 +200,7 @@ def phase2_upload_to_cn(downloaded_files, cross_region_db):
             elif upload_status == "DUPLICATE_ACTIVITY":
                 print(f"    ⏭️  重复活动，标记为已同步")
                 cross_region_db.updateSyncStatus(activity_id)
-                success_count += 1
+                time_overlap_skipped += 1
             else:
                 print(f"    ❌ 上传失败: {upload_status}")
                 cross_region_db.updateExceptionSyncStatus(activity_id)
@@ -167,7 +210,7 @@ def phase2_upload_to_cn(downloaded_files, cross_region_db):
             cross_region_db.updateExceptionSyncStatus(activity_id)
             fail_count += 1
 
-    print(f"\nPhase 2 完成。成功: {success_count}, 失败: {fail_count}")
+    print(f"\nPhase 2 完成。成功: {success_count}, 失败: {fail_count}, 跳过(时间重叠): {time_overlap_skipped}")
 
 
 def main():
