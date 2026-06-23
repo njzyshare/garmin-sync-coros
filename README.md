@@ -2,7 +2,11 @@
 
 ## 关于本仓库
 
-本仓库（原名 `garmin-sync-coros`，已更名为 `garmin-coros-sync-plus`）基于 [XiaoSiHwang/garmin-sync-coros](https://github.com/XiaoSiHwang/garmin-sync-coros) 进行二次开发，在原项目「佳明同步到高驰」基础上做了大量扩展，包含以下改动：
+本仓库（原名 `garmin-sync-coros`，已更名为 `garmin-coros-sync-plus`）基于 [XiaoSiHwang/garmin-sync-coros](https://github.com/XiaoSiHwang/garmin-sync-coros) 进行二次开发，在原项目「佳明同步到高驰」基础上做了大量扩展。**同步佳明和高驰两个平台间的运动数据，核心目标是避免高驰上产生重复的运动记录。**
+
+> ⚠️ **Fork 须知**：你的 GitHub Secrets（账号密码等敏感信息）不会随 Fork 继承。Fork 后需要自行配置 Secrets，详见下方「Github配置步骤」。
+
+包含以下改动：
 
 | # | 改动内容 | 说明 |
 |---|---------|------|
@@ -43,6 +47,8 @@ garmin_coros.db 为空 → 检测到首次运行
 #### 第 2 道防线：实时 API 时间重叠比对
 
 每个同步脚本运行时，会同时拉取双方平台的活动列表，用运动的**起止时间**进行比对。如果对方平台已有相同时间段的活动，则跳过本次同步。
+
+> ⚠️ **注意**：时间重叠比对依赖双方 API 正常返回。如果拉取对方平台活动列表失败（网络波动），会回退到仅靠 `is_sync` 标记防重，此时可能会有少量重复上传（但 is_sync 标记会阻止重复同步）。
 
 ```
 高驰原生活动 19:00-20:00
@@ -88,11 +94,13 @@ garmin_coros.db 为空 → 检测到首次运行
 | 工作流名称 | 同步方向 | 运行时间（北京时间） | 独立 DB | 说明 |
 |-----------|:--------:|:------------------:|:-------:|------|
 | `garmin-coros-sync` | 佳明 CN → 高驰 | 12:00 / 23:00 | `garmin_coros.db` | 将佳明中国区活动同步到高驰 |
-| `coros-sync-garmin` | 高驰 → 佳明 CN | 12:15 / 23:15 | `coros_garmin.db` | 将高驰活动同步到佳明中国区 |
+| `coros-sync-garmin` | 高驰 → 佳明 CN | 12:15 / 23:15 | `coros_garmin.db` | 将高驰活动同步到佳明中国区
 | `garmincn-sync-garminintl` | 佳明 CN → 佳明 INTL | 12:30 / 23:30 | `cn_intl.db` | 将国区活动跨区同步到国际区 |
 | `garminintl-sync-garmincn` | 佳明 INTL → 佳明 CN | 12:45 / 23:45 | `intl_cn.db` | 将国际区活动跨区同步到国区 |
 
 > ⏰ 四个工作流各间隔 15 分钟运行，避免 DB 文件提交冲突。
+> **注意**：`coros-sync-garmin` 工作流默认启用，同步方向为高驰→佳明CN。
+> 如果你不需要某个工作流，可以在 GitHub 仓库页面「Actions」标签页中手动 disable 它。
 >
 > **调整运行时间**：打开对应的 `.yml` 工作流文件，修改 `schedule` 下的 `cron` 表达式即可。
 > **格式说明**：`cron: '分钟 小时 * * *'`，使用 UTC 时间，北京时间 = UTC + 8。
@@ -111,12 +119,14 @@ garmin_coros.db 为空 → 检测到首次运行
 | `GARMIN_EMAIL` | 佳明中国区账号邮箱 | 全部 | 国区账号 |
 | `GARMIN_PASSWORD` | 佳明中国区账号密码 | 全部 | |
 | `GARMIN_AUTH_DOMAIN` | 佳明中国区区域 | 全部 | 国区填 `CN` |
-| `GARMIN_NEWEST_NUM` | 每次拉取活动上限（全局统一） | 全部 | 默认 `50`，设为 `0` 全量拉取；建议首次运行可设为 `0`，后续改回 `50` 或更小 |
+| `GARMIN_NEWEST_NUM` | 每次拉取活动上限（全局统一） | 全部 | 默认 `50`，设为 `0` 全量拉取。**此值同时也控制首次初始化时拉取的数量**——设为 0 则全量拉取所有活动标记为已同步。建议首次设为 `0`，后续改回 `50` 或更小 |
 | `COROS_EMAIL` | 高驰登录邮箱 | garmin-coros-sync / coros-sync-garmin | |
 | `COROS_PASSWORD` | 高驰登录密码 | 同上 | |
 | `GARMIN_INTL_EMAIL` | 佳明国际区账号邮箱 | garmincn-sync-garminintl / garminintl-sync-garmincn | |
 | `GARMIN_INTL_PASSWORD` | 佳明国际区账号密码 | 同上 | |
-| `GARMIN_INTL_AUTH_DOMAIN` | 佳明国际区区域 | 同上 | 填 `COM` |
+| `GARMIN_INTL_AUTH_DOMAIN` | 佳明国际区区域 | 同上 | 填 `COM`（留空也可） |
+
+> ⚠️ `garminintl-sync-garmincn`（国际→中国）需要同时配置国际区（`GARMIN_INTL_*`）和中国区（`GARMIN_*`）两套凭据。如果你只使用部分工作流，只需配置对应所需的参数即可。
 
 ## Github配置步骤
 ### 1.参数配置
@@ -128,8 +138,10 @@ garmin_coros.db 为空 → 检测到首次运行
 ![填入参数](doc/3471692931624_.pic.jpg)
 
 ### 2.配置WorkFlow权限
-打开**Setting**找到**Actions**点击**General**按钮,按照下图勾选并save
+打开**Setting**找到**Actions**点击**General**按钮,在 **Workflow permissions** 中选择 **Read and write permissions**，然后点击 Save。否则 git push 会因权限不足而失败。
 ![配置WorkFlow权限](doc/3481692931856_.pic.jpg)
+
+> ⚠️ 如果之前是 Read-only 权限，记得改成 Read and write，否则 workflow 无法将更新的 DB 文件推送到仓库。
 
 ### 3. workflow配置
 
@@ -156,13 +168,15 @@ garmin_coros.db 为空 → 检测到首次运行
 ![fork sync](doc/image.png)
 
 ## 删除db步骤
-按照图片顺序执行即可
-![alt text](doc/image5.png)
-![alt text](doc/image-1.png)
-![alt text](doc/image-2.png)
-![alt text](doc/image-3.png)
-![alt text](doc/image-4.png)
-删除完后等脚本自己执行即可
+
+如果你需要重置同步状态（比如删除后让脚本重新初始化），按照以下步骤操作：
+
+1. 在仓库页面进入 db/ 目录
+2. 删除对应的 `.db` 文件
+3. 下次 workflow 运行时，会自动检测到 DB 为空，执行初始化流程
+4. 初始化流程会将双方现有活动标记为已同步，不会上传任何活动
+
+> 删除 DB 文件后，下次运行会自动执行初始化，无需手动操作。
 
 ## 致谢
 - 本脚本佳明模块代码来自@[yihong0618](https://github.com/yihong0618) 的 [running_page](https://github.com/yihong0618/running_page) 个人跑步主页项目,在此非常感谢@[yihong0618](https://github.com/yihong0618)大佬的无私奉献！！！

@@ -121,7 +121,13 @@ if __name__ == "__main__":
   garmin_max_num = GARMIN_NEWEST_NUM if GARMIN_NEWEST_NUM > 0 else 200
   garmin_activities = garminClient.getAllActivities()
   garmin_activities = garmin_activities[:garmin_max_num] if garmin_activities else []
-  if garmin_activities:
+  if garmin_activities is None:
+      print("⚠️ 获取佳明活动列表失败，将只依赖 is_sync 标记防重")
+      garmin_activities = []
+  elif len(garmin_activities) == 0:
+      print("佳明上暂无活动记录（列表为空），时间重叠比对跳过")
+      garmin_activities = []
+  else:
       print(f"获取到佳明最近 {len(garmin_activities)} 条活动（用于时间重叠参考）")
 
   # ========== 写入高驰活动到 DB ==========

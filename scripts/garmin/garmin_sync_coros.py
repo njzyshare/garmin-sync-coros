@@ -117,10 +117,14 @@ if __name__ == "__main__":
   # 拉取高驰活动列表（用于时间重叠比对，防回传）
   coros_max_count = GARMIN_NEWEST_NUM if GARMIN_NEWEST_NUM > 0 else 200
   coros_activities = corosClient.getAllActivities(max_count=coros_max_count)
-  if coros_activities:
-      print(f"获取到高驰最近 {len(coros_activities)} 条活动（用于时间重叠参考）")
+  if coros_activities is None:
+      print("⚠️ 获取高驰活动列表失败，将只依赖 is_sync 标记防重")
+      coros_activities = []  # 标记为 空列表（API 失败），回退到 is_sync 防重
+  elif len(coros_activities) == 0:
+      print("高驰上暂无活动记录（列表为空），时间重叠比对跳过")
+      coros_activities = []  # 高驰确实没有活动，也是空列表
   else:
-      coros_activities = []
+      print(f"获取到高驰最近 {len(coros_activities)} 条活动（用于时间重叠参考）")
 
   # ========== 写入佳明活动到 DB ==========
   for activity in all_activities:
