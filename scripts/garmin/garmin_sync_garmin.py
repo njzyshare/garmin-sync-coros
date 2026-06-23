@@ -165,10 +165,14 @@ def phase2_upload_to_intl(downloaded_files, cross_region_db):
 
     # 拉取目标平台活动列表（用于时间重叠比对，防往返）
     target_activities = target_client.getAllActivities()
-    if target_activities:
-        print(f"获取到国际区最近 {len(target_activities)} 条活动（用于时间重叠参考）")
+    if target_activities is None:
+        print("⚠️ 获取国际区活动列表失败，将只依赖 is_sync 标记防重")
+        target_activities = []
+    elif len(target_activities) == 0:
+        print("国际区暂无活动记录（列表为空），时间重叠比对跳过")
+        target_activities = []
     else:
-        print("⚠️ 获取国际区活动列表失败，将跳过时间重叠检查")
+        print(f"获取到国际区最近 {len(target_activities)} 条活动（用于时间重叠参考）")
 
     time_overlap_skipped = 0
     success_count = 0
@@ -235,25 +239,37 @@ def main():
 
     ensure_dirs_exist()
 
+    # 清理上次残留的临时文件
+    if os.path.exists(GARMIN_FIT_DIR):
+        shutil.rmtree(GARMIN_FIT_DIR)
+        os.makedirs(GARMIN_FIT_DIR)
+
     db_name = CROSS_REGION_DB_NAME
     cross_region_db = GarminCrossRegionDB(db_name)
     cross_region_db.initDB()
 
     # ---- Phase 1: 从 CN 下载 ----
-    cn_email = SYNC_CONFIG['GARMIN_EMAIL']
-    cn_password = SYNC_CONFIG['GARMIN_PASSWORD']
-    cn_auth_domain = SYNC_CONFIG.get('GARMIN_AUTH_DOMAIN', '')
-    newest_num = int(SYNC_CONFIG.get('GARMIN_NEWEST_NUM', 50))
+    try:
+        cn_email = SYNC_CONFIG['GARMIN_EMAIL']
+        cn_password = SYNC_CONFIG['GARMIN_PASSWORD']
+        cn_auth_domain = SYNC_CONFIG.get('GARMIN_AUTH_DOMAIN', '')
+        newest_num = int(SYNC_CONFIG.get('GARMIN_NEWEST_NUM', 50))
 
-    source_client = GarminClient(cn_email, cn_password, cn_auth_domain, newest_num)
-    downloaded_files = phase1_download_from_cn(source_client, cross_region_db)
+        source_client = GarminClient(cn_email, cn_password, cn_auth_domain, newest_num)
+        downloaded_files = phase1_download_from_cn(source_client, cross_region_db)
+    except Exception as e:
+        print(f"❌ Phase 1 失败: {e}")
+        return
 
     if not downloaded_files:
         print("没有需要同步的活动，退出。")
         return
 
     # ---- Phase 2: 上传到 INTL ----
-    phase2_upload_to_intl(downloaded_files, cross_region_db)
+    try:
+        phase2_upload_to_intl(downloaded_files, cross_region_db)
+    except Exception as e:
+        print(f"❌ Phase 2 失败: {e}")
 
     if os.path.exists(GARMIN_FIT_DIR):
         shutil.rmtree(GARMIN_FIT_DIR)
