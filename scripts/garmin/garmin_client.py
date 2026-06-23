@@ -17,6 +17,8 @@ class GarminClient:
         self.email = email
         self.password = password
         self.garthClient = garth
+        # 默认超时 10 秒太短，佳明中国区 API 有时响应较慢，改为 30 秒
+        self.garthClient.client.timeout = 30
         self.newestNum = int(newest_num)
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.88 Safari/537.36",
@@ -101,7 +103,7 @@ class GarminClient:
           url_path = GARMIN_URL_DICT["garmin_connect_upload"]
           upload_url = f"https://connectapi.{self.garthClient.client.domain}{url_path}"
           self.headers['Authorization'] = str(self.garthClient.client.oauth2_token)
-          response = requests.post(upload_url, headers=self.headers, files=fields)
+          response = requests.post(upload_url, headers=self.headers, files=fields, timeout=30)
           res_code = response.status_code
           result = response.json()
           upload_id = result.get("detailedImportResult", {}).get('uploadId')
