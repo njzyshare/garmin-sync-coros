@@ -79,21 +79,6 @@ if __name__ == "__main__":
   corosClient = CorosClient(COROS_EMAIL, COROS_PASSWORD)
   corosClient.login()
 
-  # ========== 初始流程：DB 为空时首次初始化 ==========
-  # 第一次运行时，DB 是空的。初始化只标记本平台的活动为已同步。
-  # 对方平台的活动不需要标记——后续运行时会通过时间重叠比对防重。
-  garmin_db_first_run = garmin_db.isFirstRun()
-  if garmin_db_first_run:
-      print("检测到首次运行，执行初始流程：记录佳明现有活动，避免产生重复数据...")
-      init_garmin = garminClient.getAllActivities()
-      if init_garmin:
-          for act in init_garmin:
-              garmin_db.saveActivity(act["activityId"])
-              garmin_db.updateSyncStatus(act["activityId"])
-          print(f"  已记录 {len(init_garmin)} 条佳明活动（标记为已同步）")
-      print("初始流程完成。后续运行时若佳明活动与高驰有时间重叠，会被自动跳过。")
-      exit()
-
   # ========== 获取双方活动列表 ==========
   # 拉取佳明活动列表
   all_activities = garminClient.getAllActivities()

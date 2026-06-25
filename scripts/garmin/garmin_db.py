@@ -45,13 +45,6 @@ class GarminDB:
         with SqliteDB(self._garmin_db_name) as db:
           db.execute(update_sql, (activity_id,))
 
-    def isFirstRun(self):
-        """检查 DB 是否首次使用（表中无数据）"""
-        with SqliteDB(self._garmin_db_name) as db:
-            row = db.execute('SELECT COUNT(*) FROM garmin_activity').fetchone()
-            count = row[0] if row else 0
-            return count == 0
-
     def initDB(self):
       with SqliteDB(os.path.join(DB_DIR, self._garmin_db_name)) as db:
           db.execute('''

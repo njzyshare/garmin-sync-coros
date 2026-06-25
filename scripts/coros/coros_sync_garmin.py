@@ -87,18 +87,6 @@ if __name__ == "__main__":
   coros_db = CorosDB(db_name)
   init(coros_db)
 
-  # ========== 初始流程：DB 为空时首次初始化 ==========
-  if coros_db.isFirstRun():
-      print("检测到首次运行，执行初始流程：记录高驰现有活动，避免产生重复数据...")
-      init_coros = corosClient.getAllActivities(max_count=COROS_NEWEST_NUM if COROS_NEWEST_NUM > 0 else 50)
-      if init_coros:
-          for act in init_coros:
-              coros_db.saveActivity(act["labelId"], act["sportType"])
-              coros_db.updateSyncStatus(act["labelId"])
-          print(f"  已记录 {len(init_coros)} 条高驰活动（标记为已同步）")
-      print("初始流程完成。后续运行时若高驰活动与佳明有时间重叠，会被自动跳过。")
-      exit()
-
   # ========== 获取双方活动列表 ==========
   # 拉取高驰活动列表
   max_count = COROS_NEWEST_NUM if COROS_NEWEST_NUM > 0 else 0
