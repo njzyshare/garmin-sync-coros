@@ -130,34 +130,45 @@ class CorosClient:
 
     def downloadActivitie(self, id, sport_type):
        self.checkToken()
-       ## 文件下载链接
-       get_activity_download_url = f"{self.teamapi}/activity/detail/download?labelId={id}&sportType={sport_type}&fileType=4"
-       headers = {
-          "Accept":       "application/json, text/plain, */*",
-          "accesstoken": self.accessToken,
-       }
-       try:
-           get_activity_download_url_response = self.req.request(
-                  method = 'POST',
-                  url=get_activity_download_url,
-                  headers=headers
-              )
-           get_activity_download_url_response_json = json.loads(get_activity_download_url_response.data)
-           if 'data' not in get_activity_download_url_response_json or 'fileUrl' not in get_activity_download_url_response_json.get('data', {}):
-               print(f"  高驰下载响应异常（labelId={id}, sportType={sport_type}）: {get_activity_download_url_response_json}")
-               raise Exception(f"高驰下载 API 响应缺少 data.fileUrl: labelId={id}, sportType={sport_type}, 完整响应: {get_activity_download_url_response_json}")
-           download_url = get_activity_download_url_response_json['data']['fileUrl']
-       except KeyError as e:
-           print(f"  高驰下载响应字段缺失（labelId={id}, sportType={sport_type}）: {e}")
-           raise Exception(f"高驰下载 API 响应字段缺失: labelId={id}, sportType={sport_type}, KeyError={e}")
-       except Exception as e:
-           print(f"  高驰下载失败（labelId={id}, sportType={sport_type}）: {e}")
-           raise
-       return self.req.request(
-          method = 'GET',
-          url=download_url,
-          headers=headers
-      )
+
+       # 65535 是未定义的无效运动类型（高驰 API 对某些活动返回异常值）
+       # 尝试用 fileType=1（原始 FIT 格式）或 fileType=0（不指定格式）下载
+       file_types_to_try = [4]
+       if sport_type == 65535 or sport_type > 50000:
+           print(f"  ⚠️ 活动 {id} 的 sportType={sport_type} 异常，将尝试备用 fileType")
+           file_types_to_try = [1, 0, 4]
+
+       last_error = None
+       for file_type in file_types_to_try:
+           try:
+               get_activity_download_url = f"{self.teamapi}/activity/detail/download?labelId={id}&sportType={sport_type}&fileType={file_type}"
+               headers = {
+                  "Accept":       "application/json, text/plain, */*",
+                  "accesstoken": self.accessToken,
+               }
+               response = self.req.request(
+                      method = 'POST',
+                      url=get_activity_download_url,
+                      headers=headers
+                  )
+               response_json = json.loads(response.data)
+               if 'data' in response_json and 'fileUrl' in response_json.get('data', {}):
+                   download_url = response_json['data']['fileUrl']
+                   return self.req.request(
+                      method = 'GET',
+                      url=download_url,
+                      headers=headers
+                   )
+               else:
+                   print(f"  尝试 fileType={file_type} 失败（labelId={id}, sportType={sport_type}）: {response_json}")
+                   last_error = Exception(f"高驰下载 API 响应缺少 data.fileUrl: labelId={id}, sportType={sport_type}, fileType={file_type}")
+           except Exception as e:
+               print(f"  尝试 fileType={file_type} 异常（labelId={id}, sportType={sport_type}）: {e}")
+               last_error = e
+               continue
+
+       print(f"  高驰下载全部尝试失败（labelId={id}, sportType={sport_type}）")
+       raise last_error or Exception(f"高驰下载失败: labelId={id}, sportType={sport_type}")
 
     ## 检查token是否有效
     def checkToken(self):
