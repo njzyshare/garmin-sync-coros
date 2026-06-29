@@ -34,18 +34,14 @@ def init(garmin_db):
 
 
 def parse_garmin_time(time_str):
-    """将佳明的时间字符串（如 '2026-06-26 13:58:35'）解析为 UTC datetime"""
+    """将佳明 startTimeGMT 字符串（如 '2026-06-28 08:41:18'）解析为 datetime
+    startTimeGMT 已经是 UTC 时间（GMT=UTC），无需时区转换"""
     if not time_str:
         return None
     try:
-        # 佳明返回的 startTimeGMT 实际是中国区本地时间，需要转 UTC
-        # 格式: '2026-06-26 13:58:35'
-        dt = datetime.datetime.strptime(time_str.strip(), '%Y-%m-%d %H:%M:%S')
-        # 转换为 UTC (北京时间 = UTC+8)
-        return dt - datetime.timedelta(hours=8)
+        return datetime.datetime.strptime(time_str.strip(), '%Y-%m-%d %H:%M:%S')
     except ValueError:
         try:
-            # 也支持 ISO 格式兜底
             return datetime.datetime.fromisoformat(time_str.replace('Z', '+00:00'))
         except:
             return None
