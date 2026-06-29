@@ -156,9 +156,14 @@ if __name__ == "__main__":
 
       start_time, end_time = get_coros_time(activity_data)
       if start_time and end_time and garmin_activities:
+          # 检查是否有异常标记
+          sport_type = activity_data.get("sportType", 0)
+          extra_info = ""
+          if sport_type == 65535 or sport_type > 50000:
+              extra_info = f"（sportType={sport_type} 异常）"
           # 比对佳明活动列表
           if has_time_overlap(start_time, end_time, garmin_activities, get_garmin_time):
-              print(f"  跳过活动 {activity_id}（{start_time}~{end_time}，佳明已有此时间段记录），避免数据往返")
+              print(f"  跳过活动 {activity_id}（{start_time}~{end_time}，佳明已有此时间段记录）{extra_info}")
               coros_db.updateSyncStatus(activity_id)
               skipped_count += 1
               continue

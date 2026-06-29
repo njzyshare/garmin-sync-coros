@@ -157,7 +157,7 @@ if __name__ == "__main__":
               et = a.get("endTime", 0)
               return parse_coros_timestamp(st), parse_coros_timestamp(et)
           if has_time_overlap(start_time, end_time, coros_activities, get_coros_time):
-              print(f"  跳过活动 {activity_id}（{start_time}~{end_time}，高驰已有此时间段记录），避免数据往返")
+              print(f"  跳过活动 {activity_id}（{start_time}~{end_time}，高驰已有此时间段记录）")
               garmin_db.updateSyncStatus(activity_id)
               skipped_count += 1
               continue
